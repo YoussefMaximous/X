@@ -3,7 +3,7 @@
 Updated: 2026-11-20 · Phase: prototype · Source: intent (user, 2026-11-20, two messages)
 
 ## North star
-The team's EA expert runs any MT4 expert advisor over a full year of real ticks, and in minutes the software shows every defect in how it traded, each with its proof, ranked by what it costs, one click from the exact moment on the MT4 chart. He stops finding these defects the slow way, on a live demo. Adding a new kind of defect takes him one sentence to Claude Code.
+The team's EA expert runs any MT4 expert advisor over a full year of real ticks, and in minutes the software shows every defect in how it traded, each with its proof, ranked by what it costs, one click from the exact moment on a chart that looks and works like the MT4 he knows. He stops finding these defects the slow way, on a live demo. Adding a new kind of defect takes him one sentence to Claude Code.
 
 ## Who it is for
 - **End user: the team's EA expert.** He writes the EAs and today tests them on a live demo account. He is highly skilled in trading and EAs; he should never need to read this tool's code. He has Claude Code and will use it on the repository to add defects.
@@ -18,7 +18,9 @@ The team's EA expert runs any MT4 expert advisor over a full year of real ticks,
 - Every detector in `.teams/DEFECTS.md` (catalogue v1) runs automatically on the result. Every finding stores the numbers that triggered it.
 - A new defect is added by creating one file plus its tests, following `docs/ADDING_A_DEFECT.md`. Proven by adding one through Claude Code with a one-sentence request.
 - A fast local app lists defects, filters them any way the expert likes (saved views), ranks defect types by money, and replays the ticks of any trade with the proof drawn on it.
-- Clicking a defect moves the MT4 chart to that moment and draws entry, exit, stop, target and the defect.
+- The app's chart and tools look and work like MT4, checked side by side with the real MT4 and signed off by the team; inspection happens in the app, MT4 only executes the EA in the background (D-21).
+- Every losing trade has one main cause; the Losses panel shows each type with its count and cost, the numbers add up to the total loss, and one click opens the trade on the chart with replay (D-22).
+- Clicking a defect moves our MT4-style chart to that moment and draws entry, exit, stop, target and the defect. "Open in real MT4" shows the same moment in MT4 itself (optional extra, D-21).
 - The expert can install and run it on his own PC from the GitHub repository with one setup step.
 - Time-bound duties: until 2026-12-31: tick sync keeps topping up, owner builder (tooling), expert or user (running it).
 

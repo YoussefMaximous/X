@@ -12,7 +12,7 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
                     Defect engine  <──────────────────────────────  Run store
                            │  reconcile, measure, run every detector
                            ▼
-                      Local app  ── click ──> MT4 bridge (chart jumps to the trade)
+                      Local app  ── click ──> our MT4-style chart at that trade (optional: the same moment in real MT4)
 ```
 
 ## Parts
@@ -28,20 +28,20 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 | Run store | Runs, trades, journal events, decisions, findings, notes. | DuckDB file |
 | Defect engine | Reconciles the run with the ticks, computes per-trade measurements once, then runs every detector. | Python |
 | Detectors | One file per defect, discovered automatically. Catalogue in `.teams/DEFECTS.md`. | Python |
-| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. On open it goes online for nothing: it reads the local manifest, shows how old the stored data is, and offers the Top up button and a button to run the EA over the new days (D-20). It never downloads and never re-runs the EA by itself. Results are shown two ways side by side: "MT4 says" and "with real spreads" (D-19). Also holds the **Run** screen (pick EA, settings and any date range, then quick run or analysed run) and the **Data** tab (one package per year with Download and Top up buttons, see "Data tab"). | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
-| MT4 bridge | An MT4 **indicator** (not an EA) on a chart that reads a command file, jumps to a time and draws the trade. MT4 does not let indicators place orders. | MQL4 |
+| App | Looks and works like MT4 (D-21). MT4-style chart with tools, indicators and tick replay; the Losses panel (D-22); defect list, filters, saved views, money ranking, calendar, the evidence drawn on the chart, what-if, version compare. On open it goes online for nothing: it reads the local manifest, shows how old the stored data is, and offers the Top up button and a button to run the EA over the new days (D-20). It never downloads and never re-runs the EA by itself. Results are shown two ways side by side: "MT4 says" and "with real spreads" (D-19). Also holds the **Run** screen (pick EA, settings and any date range, then quick run or analysed run) and the **Data** tab (one package per year with Download and Top up buttons, see "Data tab"). | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
+| MT4 bridge | Optional extra, "Open in real MT4" (D-21); the main place to inspect is our own MT4-style chart. An MT4 **indicator** (not an EA) on a chart that reads a command file, jumps to a time and draws the trade. MT4 does not let indicators place orders. | MQL4 |
 
 ## One software, two uses (D-16)
 
-It is one program with one Run screen. The expert uses it in two ways: he lets it find the defects and jumps to them, or he picks a period and looks through it in MT4 with his own eyes. The second use must never force the first: no defect list, no analysis, nothing in his way.
+It is one program with one Run screen. The expert uses it in two ways: he lets it find the defects and jumps to them, or he picks a period and looks through it with his own eyes on our MT4-style chart (D-21). The second use must never force the first: no defect list, no analysis, nothing in his way.
 
-- **Quick run.** The expert picks an EA, its settings and any date range (a day, three weeks, a month, a set of days, the year). The software checks the ticks for that range are stored, prepares MT4's history for exactly that range, starts the Strategy Tester on it, and leaves MT4 open with the result so he inspects it by hand, the way he does today. Visual mode is a tick box. No defect analysis runs.
+- **Quick run.** The expert picks an EA, its settings and any date range (a day, three weeks, a month, a set of days, the year). The software checks the ticks for that range are stored, prepares MT4's history for exactly that range, runs the Strategy Tester on it in the background, and opens the result on our chart with every trade drawn, so he inspects it by hand the way he does today. "Open in real MT4" stays available. No defect analysis runs.
 - **Analysed run.** The same, followed by reconciliation and every detector.
 - **A quick run can be analysed later** with one button, without running MT4 again, because its trades and journal are captured either way.
 - **Both modes are Strategy Tester only** (D-14). Neither attaches an EA to a chart.
 - **Missing ticks never pass silently.** If the chosen range has days that are not stored, the run does not start; it names the days and offers the download button.
 - **Prepared history is reused.** A range that was prepared before starts without being rebuilt, so repeat runs are fast.
-- To confirm in inc-2: that MT4 can be left open on the finished test, and that visual mode can be switched on, from the start file.
+- To confirm in inc-2: that MT4 can run a test from the start file without its window getting in the user's way, and close itself when the test ends.
 
 ## MT4 export (D-18)
 
@@ -93,6 +93,37 @@ Limits, stated plainly:
 - The downloader is third-party code (`dukascopy-node`) that opens a hidden browser to pass the site's check. It is pinned, but it is not ours.
 - An AI assistant such as Claude Code sends the files it reads to its provider. That is outside this software. The expert's EA source does not need to be in this repository's folder, and the rules tell the AI not to open it.
 - These layers stop mistakes and careless changes. Open source means anyone can read the code and see it is so; it also means a person can make his own changed copy.
+
+## MT4 look and feel (D-21)
+
+The team works inside loss-lens. MT4 runs in the background to execute the EA and is not where anyone looks. So our chart has to feel like the chart they have used for years.
+
+**What matches MT4** (each item is checked against the real MT4 on this PC, side by side, on the same symbol and period):
+- Window layout: toolbars on top, chart in the middle, Market Watch and Navigator style panels on the left, a Terminal style panel at the bottom with tabs, a status bar. Panels open and close with MT4's keys.
+- The chart: MT4's default colours (black background, green bars, grid, bid line), bars, candles and line types, timeframes M1 to MN, zoom steps, auto-scroll and chart shift, crosshair with distance read-out, period separators, the price and time scales, the top-left symbol and OHLC text, the Data Window.
+- Tools: horizontal, vertical and trend lines, channels, Fibonacci, text and arrows, drawn and edited the way MT4 does it. Templates and chart properties (colours) can be changed and saved.
+- Standard indicators (moving averages, RSI, MACD, Bollinger Bands, ATR, Stochastic and the rest of MT4's built-in list). Each one is tested against values exported from MT4 itself; one that does not match MT4 is not shipped.
+- Trades drawn the way the tester draws them: entry and exit arrows, the dashed line between them, stop and target lines.
+- Replay controls in the style of the tester's visual mode: speed slider, pause, step, skip to a time. Ours goes tick by tick.
+- MT4's keyboard keys and mouse habits wherever we have the same function.
+
+**What is added, without changing a habit:** the real ask line and spread, the defect's proof drawn on the chart, the Losses panel, "MT4 says" beside "with real spreads", next and previous defect keys.
+
+**Limits, stated plainly:**
+- An EA's own custom indicators can only be computed by MT4. They are not drawn on our chart. For those, "Open in real MT4" (the bridge) shows the same moment in MT4.
+- We copy how it looks and behaves. We do not use MetaQuotes' code, name, logo or icon pictures; our icons are our own drawings in the same places. (MT4 is free to use but it is not open source.)
+- MT4 has hundreds of small behaviours. "Like MT4" is held by a written checklist made from the real MT4 and signed off by the team before the screens are built, not by impression.
+
+**Chart engine:** chosen by a short trial at the start of the app increment, between `lightweight-charts` with our own additions and our own canvas chart. It must pass three checks: looks like MT4 side by side, supports the drawing tools, and plays a day of ticks at 60 frames per second.
+
+## Loss classification (D-22)
+
+- **One main cause per losing trade.** Each detector says whether it can be the cause of a loss. When a losing trade carries several, the main cause is picked by a fixed, written order (in `defects.toml`, changeable by the expert), and the app shows why that one was picked. The other defects stay on the trade as tags.
+- **"Unexplained" is a type.** A loss no detector explains is counted and shown there. A large "Unexplained" share means the catalogue needs a new defect, which is exactly what the add-a-defect recipe is for.
+- **The numbers add up.** The counts of all types equal the number of losing trades, and their money equals the total loss, to the cent. A test checks this on every run.
+- **The Losses panel** (in the Terminal style panel): one row per type with count, money lost, share of all losses, average and worst loss, and a small month-by-month trend. Sort by any column. Click a type to list its trades; click a trade and the chart goes to that moment with the proof drawn and replay ready; one key goes to the next one.
+- **Which result is classified:** the real-spread result (D-19) by default, with a switch to "MT4 says". A trade that loses in one and not in the other is its own type, because that difference is the reason the software exists.
+- Non-loss defects (risky wins, rule breaks, errors) stay in the defect list beside it; they are not forced into the loss types.
 
 ## Data tab (D-16, D-17)
 
@@ -173,10 +204,10 @@ Limit, stated plainly: these layers stop mistakes and careless changes. They can
 
 1. Tick store (no MT4 needed).
 2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits. Quick run from the command line for any date range. The two guard tests (no live trading, no network) and the tester-only runner arrive here, with the first MT4 code.
-3. Full-year run, reconciliation, measurements, the real-spread re-fill (layer 1), the detector contract and the first ten detectors.
+3. Full-year run, reconciliation, measurements, the real-spread re-fill (layer 1), the detector contract, the first ten detectors and the one-main-cause loss classification (D-22).
 4. The rest of catalogue v1, each with tests.
-5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence, "MT4 says" beside "with real spreads", the Run screen (quick and analysed runs) and the Data tab (year packages, Download and Top up).
-6. MT4 jump.
-7. Real-spread broker inside the test (layer 2): `LossLens.mqh`, the match-MT4-at-fixed-spread proof, then real spreads.
+5. App, part 1: the MT4-style chart (D-21). The MT4 checklist and designs signed off by the team, the chart-engine trial, then chart, timeframes, tools, standard indicators checked against MT4, trades drawn, tick replay.
+6. App, part 2: the Losses panel (D-22), defect list, filters, saved views, calendar, proof drawn on the chart, "MT4 says" beside "with real spreads", the Run screen (quick and analysed runs) and the Data tab (year packages, Download and Top up).
+7. Real-spread broker inside the test (layer 2): `LossLens.mqh`, the match-MT4-at-fixed-spread proof, then real spreads. "Open in real MT4" (the bridge) is built here too.
 8. Ship: public open-source repository with a licence, the plain-words safety page, one-step setup on the expert's PC, `CLAUDE.md`, the add-a-defect recipe proven by adding one through Claude Code.
 9. What-if lab, version compare, review notes, team report, backtest-versus-demo comparison.

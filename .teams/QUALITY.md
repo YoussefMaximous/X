@@ -32,10 +32,11 @@ Updated: 2026-11-20. The user's requirement: this ships as a professional tool, 
 - Bid and ask as separate lines, spread shown, with entry, exit, stop and target (including every stop or target change) drawn at the tick where they happened.
 - The defect's proof is drawn on the replay: the level that was touched, the spread spike, the gap, the moment the target would have been hit.
 - When the EA has a decision log, the rule that fired is shown at its tick.
-- The same moment opens in MT4 with one click, and the replay and the list stay in step.
+- The replay happens on the MT4-style chart (D-21), and the chart and the list stay in step. The same moment can also be opened in the real MT4.
 
 ## 6. It is designed, not assembled
 - The screens are designed before they are built: one visual system (type, colour, spacing, states), reviewed by the Lead with real data before the builder writes the app.
+- The visual system is MT4's (D-21). A written checklist of what must match is made from the real MT4, each item is checked by a side-by-side picture, and the team signs it off. An indicator is shipped only if its values match MT4's.
 - Every screen has its empty, loading and error states. No dead ends, no placeholder text, no sample data in a shipped screen.
 - Everything can be done from the keyboard. Next and previous defect are single keys.
 - The expert's first session is tested: can he go from install to his first inspected defect without help?

@@ -47,5 +47,5 @@ Current state only. History goes in DECISIONS.md, which only the Lead writes.
 
 ### design: App design
 - Status: planned · Need: optional
-- Mission: make the app's screens fast to read and pleasant to use
+- Mission: make the app look and work like MT4 (D-21), measured against the real MT4, and make what we add fit in without changing a habit
 - Trigger: activate when the app increment is planned; the screens are designed and approved before the builder writes them (QUALITY.md, section 6)

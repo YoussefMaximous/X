@@ -1,6 +1,6 @@
 # Lead handoff
 
-Updated: 2026-11-20 (after D-19 real spreads and D-20 nothing leaves the PC)
+Updated: 2026-11-20 (after D-21 MT4 look and D-22 loss classification)
 
 ## Goal
 Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs, reviews and decides; the builder (a cheaper model in another tool, kickoffs pasted by the user) implements.
@@ -15,6 +15,8 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - "we want the software to do the runs not MT4! why? because MT4 tester got a problem that we want to fix, fixed spread! while our tick data have the real spreads" (answered by D-19; the user chose "Build layer 2 ourselves after layer 1, for EAs with source code").
 - "make the software safe for any user ... that it doesnt steal his EAs or anything and even the AI that will read the software ... its an opensource, and it shouldnt do anything bad for the user or do ANYTHING ONLINE, like it shouldnt give anything online or be any risk on any user and his data or on his experts! should be extremely safe please" (D-20).
 - "the software SHOULD NEVER, open anything live or real money that is forbidden completely ... no future updates or ANYTHING should be able to use real money" (D-14).
+- "they are extremely used to mt4 look and colors and tools so we want the exact same look", "now were not working IN MT4 were working on our software", "im not trying to clone a product" (D-21: copy the look and habits, never MetaQuotes' code, name, logo or icons; MT4 is free but not open source).
+- "the loss classification system which classifies the type of the loss and how many times it was made, and you click on it and it takes you to inspect it on the chart it happend in this day and you could replay it" (D-22).
 - The Lead does not log in to MT4 for the user and does not handle his demo password or personal details.
 - The user reads little: keep messages to him short and plain.
 
@@ -36,7 +38,7 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - The user's other project (`C:\Users\yr471\OneDrive\Desktop\mt4-xasu-work`, read-only) holds a working ticks-to-`.hst` converter and a handoff note; it is the reference for the chart-history half of the MT4 export. It was never loaded into a real MT4.
 
 ## Decisions
-D-1 to D-20 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, Download and Top up buttons; D-18: MT4 export writes `.hst` for charts and `.fxt` with real ticks for the tester; D-19: loss-lens fills orders on real bid and ask, layer 1 re-fill for any EA then layer 2 simulated broker for source EAs; D-20: nothing leaves the PC, no automatic download, guard test `tests/test_no_network.py`, project to be open source, D-12 superseded). Measured for D-19: real spread in 2026 has median 0.65, 99th percentile 2.21, range 0.001 to 15.0, never zero or negative. The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
+D-1 to D-22 in `.teams/DECISIONS.md` (D-21: inspection happens in our own chart, which looks and works like MT4, checked side by side against the real MT4; the MT4 jump is now an optional extra built late; D-22: one main cause per losing trade, "Unexplained" type, Losses panel that adds up to the total; D-17: Data tab with one package per year, Download and Top up buttons; D-18: MT4 export writes `.hst` for charts and `.fxt` with real ticks for the tester; D-19: loss-lens fills orders on real bid and ask, layer 1 re-fill for any EA then layer 2 simulated broker for source EAs; D-20: nothing leaves the PC, no automatic download, guard test `tests/test_no_network.py`, project to be open source, D-12 superseded). Measured for D-19: real spread in 2026 has median 0.65, 99th percentile 2.21, range 0.001 to 15.0, never zero or negative. The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
 
 ## Ruled out
 - Re-implementing EA logic in our own engine (D-3).
@@ -51,6 +53,7 @@ D-1 to D-20 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, 
 - User: open MT4, finish opening the demo account inside the terminal so it connects, open a gold chart, then say so.
 
 ## Open
+- The app is now much larger (an MT4-style chart with tools and indicators). Before the app increments: ask the user for a stronger builder model, activate the design team, and make the MT4 checklist from the real MT4 on this PC.
 - MT4's real limits for a year of ticks (measure in inc-2), and the chunking or thinning choice that follows.
 - Broker server-time offset (confirm in inc-2).
 - Setup on the expert's PC (his MT4, his broker's symbol name and server time).

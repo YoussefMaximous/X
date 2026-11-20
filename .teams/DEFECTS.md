@@ -4,6 +4,8 @@ Updated: 2026-11-20. This is the list the first release must detect. Each row be
 
 A defect is anything in a run that an EA maker would want to look at: a losing trade with a nameable cause, a winning trade that was fragile or lucky, a risk or sizing problem, a pattern across many trades, a broken rule, or an error the EA raised. A trade can carry several defects.
 
+**Loss types (D-22).** Every losing trade also gets exactly one main cause, so the Losses panel adds up to the real total. A detector can be marked as a possible cause of a loss; when several apply, the main one is picked by the order written in `defects.toml`. A loss that nothing explains is counted under "Unexplained". The order of causes is set when the first detectors are built (inc-3) and reviewed by the expert with the catalogue (D-11).
+
 **Level:** trade, basket (a group of orders managed together, as in a grid), run (a pattern across the whole test).
 **Needs:** T = trades and ticks (always available) · J = MT4 tester journal · P = EA profile (a small file where the expert states what the EA is supposed to do: hours, max lot, max positions, risk per trade) · D = decision log (EAs with source) · C = news calendar.
 R = initial risk (entry to stop). MFE / MAE = best / worst price reached during the trade, measured on the side the trade exits on.

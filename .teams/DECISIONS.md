@@ -143,3 +143,17 @@ Why: The user's requirement, in his words: "it shouldnt do anything bad for the 
 Alternatives rejected: keeping the automatic top-up when the app opens: it is online activity the user did not start. Reading EA source to give richer analysis by default: not needed, and it is the user's most sensitive file.
 Supersedes: D-12 (no automatic top-up; the app shows how old the data is and offers the Top up button). Changes D-10's "private" to "open source", with the date of going public and the licence still to be chosen by the user.
 Decided by: user (the rule), Lead (how it is enforced)
+
+## D-21 · 2026-11-20 · ALL
+Decision: The team works inside loss-lens, not inside MT4. The chart and inspection tools in loss-lens look and work the way MT4's do: same layout, colours, chart types, timeframes, zoom and scroll, keyboard keys, drawing tools, standard indicators, trade marks and tester-style replay controls. MT4 runs in the background only to execute the EA. What the look must match is taken from the real MT4 on this PC, side by side, at design time. We copy the look and the habits, never MetaQuotes' code, name, logo or icon pictures. Details in ARCHITECTURE.md, "MT4 look and feel".
+Why: The user, in his words: "they are extremely used to mt4 look and colors and tools so we want the exact same look", "now were not working IN MT4 were working on our software". MT4 cannot show what loss-lens adds (real ask, tick replay, proof, loss types), so the team needs one place that feels like home.
+Alternatives rejected: a modern look of our own: the team would have to relearn it. Sending the expert to the real MT4 for every inspection (the earlier plan): slower, and MT4 cannot draw the proof or replay ticks.
+Supersedes: the part of D-16 that leaves MT4 open as the place to inspect a quick run (the result now opens in our chart). The MT4 jump becomes an optional extra, "Open in real MT4", built late; it stays useful for an EA's own custom indicators, which only MT4 can draw.
+Decided by: user
+
+## D-22 · 2026-11-20 · ALL
+Decision: Every losing trade is classified. It gets exactly one main cause from the catalogue (so the counts and the money of all types add up to the total losses, with nothing counted twice), and keeps its other defects as tags. A loss with no cause found goes to "Unexplained", which is shown like any other type. The Losses panel lists each type with how many times it happened, the money it cost, its share, and its trend over the run; clicking a type lists its trades; clicking a trade opens the chart at that moment with the proof drawn and replay ready. Details in ARCHITECTURE.md, "Loss classification".
+Why: The user asked for "the loss classification system which classifies the type of the loss and how many times it was made, and you click on it and it takes you to inspect it on the chart ... and you could replay it".
+Alternatives rejected: counting a trade under every defect it carries: the totals would exceed the real loss and mislead. Hiding losses that fit no type: it would make the software look more certain than it is.
+Supersedes: none (adds to D-7 and D-8)
+Decided by: user (the feature), Lead (one main cause, the "Unexplained" type)

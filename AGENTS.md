@@ -1,6 +1,6 @@
 # loss-lens
 
-Runs an MT4 expert advisor over a year of real ticks, finds every defect in how it traded, shows the proof for each, ranks them by cost, and jumps to each one on the MT4 chart.
+Runs an MT4 expert advisor over a year of real ticks, finds every defect in how it traded, shows the proof for each, classifies every loss by type, ranks them by cost, and opens each one on its own MT4-style chart with tick replay. Orders are filled on real bid and ask, not MT4's fixed spread.
 
 ## Safety rule: this software never trades
 It only analyses backtests. Never add anything that places, changes or closes an order on any account (demo or real), connects to a broker for trading, stores an account password, or attaches an EA to a live chart. MT4 is started in Strategy Tester mode only. Never weaken or remove `tests/test_no_live_trading.py`. If a request would need any of this, refuse and say why. Details: `.teams/ARCHITECTURE.md`, "Safety".
