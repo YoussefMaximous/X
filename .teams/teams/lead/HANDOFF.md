@@ -27,6 +27,7 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - Push only accepted work (D-10), and after each push check that the GitHub workflow (`.github/workflows/ci.yml`) is green.
 - Check state with: `git log --oneline origin/main..main`, `git status --short`, `gh run list --limit 3`, then look for the newest report in `.teams/teams/builder/work/`.
 - MT4 (measured 2026-11-20 17:45): installed at `C:\Users\yr471\AppData\Roaming\MetaTrader 4 IC Markets Global\terminal.exe`, MetaTrader 4 build 1492, 32-bit, signed by MetaQuotes, "IC Markets (SC) MT4", and that folder is also its data folder. It has not connected to a demo account yet: the log shows no login, there is no `history\<server>` folder, and the symbol list is MT4's built-in default (which is why it lists "GOLD"). The last scanned server is `ICMarketsSC-Demo01`. The gold symbol's real name, its decimals and the server clock can only be read after a login.
+- MT4 connected (measured 2026-11-20 19:45): `history\ICMarketsSC-Demo04\symbols.raw` now exists, written 18:48, 453,024 bytes = 234 records of 1936 bytes. The gold symbol is named `XAUUSD` ("Gold vs US Dollar"). Its digits value reads 2 (field position inferred: the int at byte 104 of the record; XAUJPY reads 0 there and every other XAU pair 2, which supports it; confirm with `MarketInfo` in part B). So the MT4 export must round Dukascopy's 3 decimals to 2. No gold chart has been opened yet (no `XAUUSD*.hst`). The server clock is still to be read in part B.
 - How to send a real Ctrl+C from a script on this PC: start a driver with `Start-Process python ... -WindowStyle Hidden` (own console), let it start the command as a child, then call `ctypes.windll.kernel32.GenerateConsoleCtrlEvent(0, 0)`; the driver ignores SIGINT. Use `-PassThru` and `WaitForExit`, not `-Wait`, and kill the tree afterwards.
 
 ## Done (with evidence)
@@ -48,7 +49,7 @@ D-1 to D-22 in `.teams/DECISIONS.md` (D-21: inspection happens in our own chart,
 
 ## Waiting on
 - User: when the repository goes public and under which licence (asked 2026-11-20). Before it goes public, the `.teams/` files need a pass: they hold this PC's folder paths and the user's GitHub name.
-- MT4 (checked 2026-11-20 after the user said "logged in"): the terminal is running but still has no `history\<server>` folder, so it has not connected to the demo yet.
+- MT4: nothing more from the user; it connected to the demo at 18:48 (see "State").
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
 - Builder: nothing; it is idle until part B is briefed.
 - User: open MT4, finish opening the demo account inside the terminal so it connects, open a gold chart, then say so.
