@@ -1,54 +1,46 @@
-# Builder handoff — after inc-2 part B send-back 2
+# Builder handoff — after inc-2 part B send-back 3
 
-Updated: 2026-11-21 · Increment: inc-2 part B send-back 2 · Report: `work/report-inc-2b3.md`
+Updated: 2026-11-21 · Increment: inc-2 part B send-back 3 · Report: `work/report-inc-2b4.md`
 
 ## Goal
 
-Fix the two remaining part B items and make the one retry of the 2026-03-03 tester run on the copy.
+Write our stored ticks into the measured MT4 FXT layout, using the header MT4 itself wrote.
 
 ## State and how to check it
 
-The code fixes are committed locally (`94c7e9c`; report in the next commit). The retry still produced no tester file.
+The FXT writer is committed locally (`a6e54f1`; report commit next). No MT4 was started in this job.
 
 ```text
 python -m pytest -q
 python -m ruff check .
 python -m ruff format --check .
 python -m mypy
+python -m losslens mt4 export --symbol XAUUSD --from 2026-03-03 --to 2026-03-03
 ```
 
-Expected: 87 tests pass; all tools exit 0.
+Expected: 88 tests pass; tools exit 0; export reports 1,380 bars, 554,076 FXT records and a 31,028,984-byte read-only file.
 
 ## Done (evidence in the report)
 
-- **Bare ini path:** `mt4 run` passes `/portable` and the absolute `losslens_start.ini`; test asserts exactly two arguments and no `/config:`.
-- **Empty probe:** `check_probe_ticks` returns `different` for no records; unit test added.
-- **Retry:** compile 0 errors (67 ms), export 1,380 bars (0.436 s), run timed out at 180.055 s with no report, probe or `.fxt`.
-- **No account action:** no click, key, login, password or `accounts.ini`; no user MT4; no week/month run.
-- The copy still cannot reach the tester; Q6/Q7 remain unmeasured.
+- FXT header template is exactly the measured 728-byte header; only the six specified integers are changed.
+- One 56-byte record per stored tick: minute bar time, OHLC state so far, volume so far, tick server second, zero flag.
+- 2026-03-03 export: 554,076 records; 31,028,984 bytes; file read-only.
+- Five-tick test checks all six header fields and all five records against hand-built bytes.
+- `--no-fxt` still writes only the HST.
+- No MT4 started, no `accounts.ini` opened, no login typed.
 
 ## Ruled out / do not retry
 
-- Clicking or typing in the account/login window: forbidden.
-- Opening `accounts.ini` or writing a password: forbidden.
-- Using the user's own MT4: forbidden; only the copy is started through `losslens`.
-- `--replace`: not used in this send-back.
-- Week/month runs: not started.
+- Inventing a header: the measured header is embedded byte-for-byte.
+- Writing records for minutes rather than ticks: the count is 554,076, not 1,380.
+- Starting MT4 to test the file: the Lead runs that.
 
 ## Open
 
-- Q6/Q7 still have no measured answer from the copy; the Lead's logged-in run was a separate measurement outside this copy.
-- The user must decide whether to log the copy in once; the software will not do it.
-- `data/` (including the copy) is ignored; no `.ex4`, `.fxt`, `.hst` or MT4 program is tracked.
-
-## When you finish
-
-The last thing you do, after the report file is written, is run this from the loss-lens folder. It is how the Lead hears you. The id stays as written. The sentence in quotes is the one the brief names.
-
-```text
-agent --resume d074dc17-1115-46e0-b57c-867454a73cdc -p --trust --workspace C:\Users\yr471\Projects\loss-lens "Report inc-2b4 is ready"
-```
+- Whether MT4 accepts and uses this FXT is the Lead's run; Q6/Q7 are not re-measured here.
+- The copy still has no account; the user/Lead decides if it gets one.
+- `data/` (including the copy and measured file) is ignored; no `.fxt`/`.hst`/program is tracked.
 
 ## Next step
 
-Send-back 2's code is accepted. Do "Send-back 3 of part B" in `.teams/increments/inc-2.md`: write our ticks into the `.fxt` using the measured header. Do not start either MT4. End by running the command above.
+Lead runs the FXT through MT4 and answers Q6/Q7 from that run.
