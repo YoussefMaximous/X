@@ -28,7 +28,7 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 | Run store | Runs, trades, journal events, decisions, findings, notes. | DuckDB file |
 | Defect engine | Reconciles the run with the ticks, computes per-trade measurements once, then runs every detector. | Python |
 | Detectors | One file per defect, discovered automatically. Catalogue in `.teams/DEFECTS.md`. | Python |
-| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. On open it tops up the tick store in the background (`ticks sync` up to now), shows how fresh the data is, and offers one button to run the EA over the new days. It never re-runs the EA by itself. Also holds the **Run** screen (pick EA, settings and any date range, then quick run or analysed run) and the **Data** screen (calendar of which days are stored, with the "Download missing days" button). | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
+| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. On open it tops up the tick store in the background (`ticks sync` up to now), shows how fresh the data is, and offers one button to run the EA over the new days. It never re-runs the EA by itself. Also holds the **Run** screen (pick EA, settings and any date range, then quick run or analysed run) and the **Data** tab (one package per year with Download and Top up buttons, see "Data tab"). | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
 | MT4 bridge | An MT4 **indicator** (not an EA) on a chart that reads a command file, jumps to a time and draws the trade. MT4 does not let indicators place orders. | MQL4 |
 
 ## One software, two uses (D-16)
@@ -43,11 +43,26 @@ It is one program with one Run screen. The expert uses it in two ways: he lets i
 - **Prepared history is reused.** A range that was prepared before starts without being rebuilt, so repeat runs are fast.
 - To confirm in inc-2: that MT4 can be left open on the finished test, and that visual mode can be switched on, from the start file.
 
-## Tick data controls (D-16)
+## Data tab (D-16, D-17)
 
-- **Data screen:** a calendar of the year, one cell per day: stored, partial (today), empty (weekend or holiday), or missing.
-- **"Download missing days" button:** fetches every missing or partial day from Dukascopy through `dukascopy-node`, oldest first, with a progress bar and a stop button. Stopping loses nothing; pressing again continues. It is `ticks sync` from inc-1 behind a button.
-- The top-up on open (D-12) stays: it covers the newest days automatically, and the button covers any gap.
+One tab that shows what tick data is on this PC, as one package per year.
+
+- **The list is what Dukascopy offers through `dukascopy-node`, and nothing else.** The first available year is read from the pinned package's own instrument record, not typed in by us. Measured 2026-11-20: gold ticks start on 2003-05-05, so the list runs from 2026 down to 2003.
+- **One row per year,** newest first, with its state in words:
+  - `Downloaded up to 2026-11-20` (the current year);
+  - `Downloaded` (a complete past year);
+  - `Downloaded, 3 days missing` (a year with gaps);
+  - `Not downloaded`.
+  Each row also shows the tick count and size on disk.
+- **One button per row, matching the state:**
+  - current year: **Top up**. It downloads every missing day of this year up to now, which includes everything from the last stored day to today;
+  - a year with gaps: **Download missing**;
+  - a year not downloaded: **Download**. Before it starts it shows the expected size and time, from the measured figures below.
+- **Downloads run one at a time,** oldest day first, with a progress bar and a stop button. Stopping loses nothing; pressing the button again continues. Each button is `ticks sync` from inc-1 over that year's dates.
+- **Opening a year** shows its days as a calendar: stored, partial (today), empty (weekend or holiday), missing.
+- **Files the expert imported himself** (`ticks import`) are not mixed into this list. They appear in a separate "Imported files" section below it, only when there are any.
+- The top-up on open (D-12) stays and does the same job as the Top up button, automatically.
+- Sizes to quote (measured 2026-11-20 on the builder's store, to be re-checked in the inc-1 review): 2026-01-01 to 2026-11-20 is 84.0 million ticks in 277 day files, 0.5 GB on disk. A day takes about 7 seconds to download, so a full year is roughly 30 to 45 minutes.
 
 ## Detector contract (D-8)
 
@@ -88,13 +103,13 @@ Limit, stated plainly: these layers stop mistakes and careless changes. They can
 
 ## Facts the design rests on
 
-- measured: one trading day of XAUUSD ticks is about 0.55M rows and 21–27 MB as CSV (2026-03-03: 554,076 ticks). A year is roughly 130M ticks.
+- measured: one trading day of XAUUSD ticks is about 0.55M rows and 21–27 MB as CSV (2026-03-03: 554,076 ticks). The first estimate of 130M ticks a year was too high: 2026-01-01 to 2026-11-20 is 84.0M ticks (measured on the builder's store, to be re-checked in the inc-1 review), so a full year is about 95M.
 - measured: spread on 2026-03-03 had median 0.96, 99th percentile 2.69, max 13.74 (USD). Spread varies by more than 10x within a day.
 - measured: no ticks in the 22:00 UTC hour on 2026-03-03 (daily break). Saturdays return an empty file with exit code 0.
 - measured: the newest ticks are available within seconds; `-to` is exclusive.
 - measured: on this PC, Node's own certificate store rejects every HTTPS host; `NODE_OPTIONS=--use-system-ca` fixes it. Dukascopy also sits behind a web firewall challenge that `dukascopy-node` solves with a headless browser (`--chrome-path`).
 - checked (well known, re-test in inc-2): MT4's tester stores bid only and applies one fixed spread to a whole run. So spread-driven defects cannot appear in a native MT4 run. The defect engine re-checks every trade against real bid and ask to expose them.
-- assumed (measure in inc-2): a full-year tick history file for MT4 would be around 7 GB (130M x 56 bytes), likely above what the 32-bit tester accepts, so runs are chunked by month with warm-up, or ticks are thinned. Decide after measuring.
+- assumed (measure in inc-2): a full-year tick history file for MT4 would be around 5 GB (95M x 56 bytes), likely above what the 32-bit tester accepts, so runs are chunked by month with warm-up, or ticks are thinned. Decide after measuring.
 
 ## Storage contract
 
@@ -109,7 +124,7 @@ Limit, stated plainly: these layers stop mistakes and careless changes. They can
 2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits. Quick run from the command line for any date range. The no-live-trading guard test and the tester-only runner arrive here, with the first MT4 code.
 3. Full-year run, reconciliation, measurements, the detector contract and the first ten detectors.
 4. The rest of catalogue v1, each with tests.
-5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence, tick top-up on open, the Run screen (quick and analysed runs) and the Data screen (coverage calendar, "Download missing days").
+5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence, tick top-up on open, the Run screen (quick and analysed runs) and the Data tab (year packages, Download and Top up).
 6. MT4 jump.
 7. Ship: private GitHub repository, one-step setup on the expert's PC, `CLAUDE.md`, the add-a-defect recipe proven by adding one through Claude Code.
 8. What-if lab, version compare, review notes, team report, backtest-versus-demo comparison.

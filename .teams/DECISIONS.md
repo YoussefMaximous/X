@@ -115,3 +115,10 @@ Why: The user's requirement: the expert sometimes wants to run a few weeks and d
 Alternatives rejected: a separate tool for manual runs: two programs to install and keep in step. Always analysing: gets in his way when he only wants to look.
 Supersedes: none (D-12's top-up on open stays; D-14 applies to both uses: Strategy Tester only)
 Decided by: user
+
+## D-17 · 2026-11-20 · ALL
+Decision: The Data tab shows tick data as one package per year, listing only what Dukascopy offers through `dukascopy-node` (first year read from the pinned package's instrument record; gold starts 2003-05-05, measured). Each year shows how far it is downloaded. A year not downloaded has a Download button; the current year has a Top up button that fetches every missing day up to now; a past year with gaps has Download missing. Imported files are listed separately. Details in ARCHITECTURE.md, "Data tab".
+Why: The user's requirement, in his words: show "2026 package is downloaded until the date of 2026-11-20 and 2025 and 2024 and so on is not downloaded", with a download button each and a top-up for the current year.
+Alternatives rejected: only a day-by-day calendar: does not answer "which years do I have" at a glance. A typed-in list of years: goes wrong when the source changes.
+Supersedes: the "Data screen" wording in D-16
+Decided by: user

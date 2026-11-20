@@ -26,7 +26,7 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - Catalogue v1 of 58 defects written (`.teams/DEFECTS.md`); detector contract and accuracy rules in ARCHITECTURE.md.
 
 ## Decisions
-D-1 to D-16 in `.teams/DECISIONS.md`. The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
+D-1 to D-17 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, Download and Top up buttons). The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
 
 As of 16:56 on 2026-11-20 the builder has five local commits for inc-1 and no report yet. Lead commits made after that sit on top of them, so `main` is not pushed until inc-1 is reviewed and accepted (D-10).
 
