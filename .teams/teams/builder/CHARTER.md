@@ -1,6 +1,6 @@
 # Charter: Builder (builder)
 
-Read first, every session: `.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`, this file, the "Standing rules" in `.teams/ROSTER.md`, the `.teams/DECISIONS.md` entries tagged ALL, then `HANDOFF.md` in this folder if it exists.
+Read first, every session: `.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`, `.teams/QUALITY.md`, this file, the "Standing rules" in `.teams/ROSTER.md`, the `.teams/DECISIONS.md` entries tagged ALL, then `HANDOFF.md` in this folder if it exists.
 
 ## Mission
 Turn each brief in `.teams/increments/` into working, verified code.

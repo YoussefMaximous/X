@@ -14,6 +14,7 @@ Current state only. History goes in DECISIONS.md, which only the Lead writes.
 ## Standing rules
 - **No live trading, ever (D-14).** Nothing in this repository may place, change or close an order on any account, connect to a broker for trading, or store an account password. MT4 is started in Strategy Tester mode only. Order functions are allowed in one file only, the reference EA, which must refuse to run outside the tester. If a brief or a user request seems to need otherwise, stop and report it.
 - Only the builder writes product files. Only the Lead writes `.teams/` (except the builder's own folder).
+- The quality bar in `.teams/QUALITY.md` applies to everything (D-15). No `TODO`, stub, mock or sample data in a shipped path.
 - Follow the brief exactly. If something is unclear or looks wrong, stop and write the question in your report. Do not guess and do not widen the scope.
 - No new dependencies beyond those the brief names.
 - Never commit anything under `data/`, `node_modules/` or `.venv/`.
@@ -46,4 +47,4 @@ Current state only. History goes in DECISIONS.md, which only the Lead writes.
 ### design: App design
 - Status: planned · Need: optional
 - Mission: make the app's screens fast to read and pleasant to use
-- Trigger: activate when inc-4 (app v1) is planned
+- Trigger: activate when the app increment is planned; the screens are designed and approved before the builder writes them (QUALITY.md, section 6)

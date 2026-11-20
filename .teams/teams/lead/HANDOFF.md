@@ -26,7 +26,7 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - Catalogue v1 of 58 defects written (`.teams/DEFECTS.md`); detector contract and accuracy rules in ARCHITECTURE.md.
 
 ## Decisions
-D-1 to D-9 in `.teams/DECISIONS.md`.
+D-1 to D-15 in `.teams/DECISIONS.md`. The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`).
 
 ## Ruled out
 - Re-implementing EA logic in our own engine (D-3).

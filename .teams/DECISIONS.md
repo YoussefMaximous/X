@@ -101,3 +101,10 @@ Why: The user forbids any live or real-money action, including through future up
 Alternatives rejected: relying on the tester being a simulation alone: the bridge and future changes are outside the tester. Making the bridge an EA: an EA is able to trade; an indicator is not.
 Supersedes: the "small EA" wording for the MT4 bridge in earlier ARCHITECTURE.md
 Decided by: user (the rule), Lead (how it is enforced)
+
+## D-15 · 2026-11-20 · ALL
+Decision: The product must ship at professional grade. The bar is `.teams/QUALITY.md`: provable findings, repeatable runs, plain failure messages and a self-check command, measured speed budgets, tick replay as a first-class feature, screens designed before they are built, and code kept like a product (types, linting, tests on GitHub, releases, clean-PC install). An increment with a known defect is sent back. Risky steps get a second independent review.
+Why: The user requires that the tool does not look or behave like something generated in one go; it goes to an expert whose trust depends on it.
+Alternatives rejected: leaving quality to each brief: the bar drifts. Polishing at the end: structure and speed cannot be added afterwards.
+Supersedes: none
+Decided by: user (the requirement), Lead (the bar)

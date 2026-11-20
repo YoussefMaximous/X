@@ -21,6 +21,7 @@ The team's EA expert runs any MT4 expert advisor over a full year of real ticks,
 
 ## Hard constraints
 - **No live trading, ever.** The software only analyses. It never places, changes or closes an order on any account, demo or real, now or in any later version. Enforced in layers (ARCHITECTURE.md, "Safety", D-14).
+- **Professional grade, as defined in `.teams/QUALITY.md`.** Every increment is judged against that page as well as its brief (D-15).
 - **Accuracy before features.** A wrong finding costs the expert's trust in all of them. No detector ships without tests; no run is analysed before it is reconciled with the ticks (ARCHITECTURE.md, "Accuracy rules").
 - Windows. MT4 (32-bit). The EA runs only inside MT4; we never re-implement an EA's logic.
 - EA-agnostic. Works with a compiled `.ex4` (trades and journal) and with source `.mq4` (adds an optional decision log).
