@@ -34,7 +34,7 @@ D-1 to D-9 in `.teams/DECISIONS.md`.
 - A rule-builder screen as the way to add defects (D-8).
 
 ## Waiting on
-- User: paste the builder kickoff (he said he will); install MT4 from the team's broker and log in to a demo once (the Lead then reads the gold symbol's name from the terminal); say whether the team owns Tick Data Suite.
+- User: paste the builder kickoff (he added "install MT4" to it; the brief now tells the builder not to, D-13); install IC Markets' MT4 himself and open a demo account (the Lead then checks it is MetaTrader 4 and reads the gold symbol's name and server time); say whether the team owns Tick Data Suite.
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
 - Builder: report for inc-1.
 

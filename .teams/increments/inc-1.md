@@ -107,6 +107,8 @@ Things you must respect:
 
 **Tests (no network).** At least: column mapping with ask before bid; split at UTC midnight; `read_ticks` range edges (`from` inclusive, `to` exclusive) across two days; atomic write leaves no `.tmp`; status rule (`complete` / `partial` / `empty`) from the fetch time; a failed download is not recorded; verify detects an out-of-order row, an `ask < bid` row and a 400-second gap; import with `iso` timestamps and a UTC offset. One optional real-download test may exist, marked `network`, skipped by default.
 
+**MT4 is not your job in this increment.** If your kickoff message asks you to install MT4, do not: the installer sits behind the broker's client area and a demo account needs the user's personal details, so the user installs it himself (D-13). Never install any MetaTrader build from another site. Say this in your first reply and carry on with the tick store, which needs no MT4.
+
 **Do not:** build any UI; touch MT4; create a GitHub repository or push; add dependencies; change the storage contract; commit tick data; edit `.teams/` outside your own folder.
 
 **If something here is wrong or impossible:** stop, write what you found in your report, and wait. Do not work around it silently.

@@ -87,3 +87,10 @@ Why: The user wants the data current whenever the tool opens. Measured 2026-11-2
 Alternatives rejected: re-running the EA on every open: slow, and surprising. A live streaming feed into the app: not a live monitor (non-goal).
 Supersedes: none
 Decided by: user (top-up on open), Lead (EA run stays manual)
+
+## D-13 · 2026-11-20 · ALL
+Decision: The MT4 used for development is IC Markets' (the site now trades as "IC", https://www.ic.com). The user installs it and opens a demo account; the builder does not install MetaTrader. The Lead then confirms the program is MetaTrader 4 and reads the gold symbol's name and the server time from it.
+Why: The user chose IC Markets. Observed 2026-11-20: the page's "Download MetaTrader 4" link goes to the client area (`secure.ic.com/Downloads`) and the site refuses automated requests (403), so a builder would have to guess a link or use another site; whether the download needs a login was not confirmed. A demo account needs personal details. This PC's `C:\Program Files\MetaTrader` folder holds MetaTrader 5, so a wrong installer is a real risk.
+Alternatives rejected: builder installs MT4 during inc-1: contradicts its download rule, and it would have to guess the installer. MetaQuotes' generic installer: known to install MT5.
+Supersedes: none
+Decided by: user (broker), Lead (who installs)
