@@ -116,11 +116,21 @@ The team works inside loss-lens. MT4 runs in the background to execute the EA an
 
 **Chart engine:** chosen by a short trial at the start of the app increment, between `lightweight-charts` with our own additions and our own canvas chart. It must pass three checks: looks like MT4 side by side, supports the drawing tools, and plays a day of ticks at 60 frames per second.
 
-## Loss classification (D-24)
+## Loss classification (D-24, D-25, D-26)
 
-Classifying why a trade lost is the core of the product, and it is the hard part. A loss can have several reasons, or none. When several fit, one is the main reason, the one that accounts for the most of the loss, and each further reason must pass a gate: a score high enough against that loss (D-25). How the score and the gate work is not settled. The screen (types on and off, every loss listed from the biggest, the pattern shown before the name, the money and the spread of each type) is being designed; the brief is `.teams/teams/lead/work/checkpoints/2026-11-20-loss-types-screen.md`.
+Classifying why a trade lost is the core of the product, and it is the hard part. The full design is `.teams/LOSSES.md`. Its rules, in short:
 
-What already stands:
+- **A reason must be worth money.** Each loss type states one what-if in one sentence and computes, on the real ticks, how much smaller the loss would have been. That amount as a share of the loss is the score.
+- **The gate:** a reason counts at a score of 25% or more, above a small floor in money. Both are settings and starting guesses.
+- **The main reason** is the counted reason with the highest score. A loss can show up to five reasons, or none.
+- **Every loss has one shape** (how it unfolded). A shape is a description and is never "unknown".
+- **Circumstances** (time of day, just after a stop) count only through a whole-run comparison that includes winners.
+- **"No reason found"** and **"Not judged"** are rows like any other and cannot be switched off.
+- **Money is counted once,** under the main reason. Type totals add up to the run's loss to the cent; a test checks it.
+- **Two switches:** the tick box re-labels losses without hiding any; Hide removes losses from view and always says how much is hidden.
+- **Stored per loss:** its shape and every matched type with its saved money, score and kind, so switches work without a new run.
+
+What also stands:
 - A defect is a reason a loss happened (D-23). The draft reasons are in `.teams/DEFECTS.md`.
 - Clicking a loss opens our chart at that moment, with replay.
 - Results can be read as "MT4 says" or "with real spreads" (D-19).
@@ -153,6 +163,7 @@ Adding a defect must be a small, safe, self-contained job that the expert can ha
 - **One file per defect:** `src/losslens/defects/<id>.py`. It declares `ID`, `TITLE`, `DESCRIPTION` (plain words), `LEVEL` (trade, basket or run), `NEEDS` (ticks, journal, profile, decision log, calendar), `PARAMS` (names, defaults, meaning) and one function `detect(ctx) -> list[Finding]`.
 - **`ctx` gives everything ready-made:** the trade (or basket, or run), its precomputed measurements (R, MFE, MAE, spread at entry and exit, session, volatility, trend), and `ctx.ticks(from_ms, to_ms)`. A detector never opens files or talks to MT4.
 - **A `Finding` carries its proof:** what it is attached to, a one-line explanation, the numbers that triggered it, and the time window to show. The app draws that proof on the tick replay, so the expert can check any finding by eye.
+- **A loss type also carries its what-if (D-26):** one sentence saying what is changed, the trade's result under it computed on the real ticks, and the money saved. Its tests include one case worked out by hand. A type whose what-if cannot be computed is not a loss type.
 - **No detector without tests:** `tests/defects/test_<id>.py` must hold at least one case that must be flagged, one that must not, and one on the threshold edge. Cases are built with a small helper that makes synthetic ticks and trades, so tests need no downloads.
 - **Discovered automatically:** a new file appears in the engine, the filters and the money ranking with no other change.
 - **One command checks a new detector:** `python -m losslens defects check <id>` runs its tests, runs it on the latest stored run, and prints how many it found plus three examples.

@@ -48,7 +48,7 @@ Current state only. History goes in DECISIONS.md, which only the Lead writes.
 ## Pro chats
 | Topic | Chat | Status |
 |---|---|---|
-| Losses screen (on/off types, size ranking, pattern then name, money and spread of results) | new Fable chat, packet `.teams/teams/lead/work/checkpoints/2026-11-20-loss-types-screen.md` | waiting for the reply, 2026-11-20 |
+| Losses screen (on/off types, size ranking, pattern then name, money and spread of results) | packet `.teams/teams/lead/work/checkpoints/2026-11-20-loss-types-screen.md` | answered 2026-11-20 by the Lead itself, with the user's authority: `.teams/LOSSES.md`, D-26 |
 
 ### design: App design
 - Status: planned · Need: optional

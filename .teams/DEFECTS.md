@@ -4,7 +4,7 @@ Updated: 2026-11-20. Draft list of loss reasons. Each row can become one detecto
 
 A defect is a reason a losing trade lost (D-23). One loss can have several reasons, or none (D-24). The rows below are a draft list, not a fixed set.
 
-**Loss types (D-24).** Classifying why a trade lost is the core of the product, and it is hard. A loss can match several reasons, or none. How the screen shows that is not settled; it is the subject of the Fable checkpoint `2026-11-20-loss-types-screen.md`. The expert reviews this draft list after the software works (D-11).
+**Loss types (D-24, D-26).** Classifying why a trade lost is the core of the product, and it is hard. A loss can match several reasons, or none. How reasons are scored, gated and shown is in `.teams/LOSSES.md`. Two consequences for this list: every row needs a what-if that can be computed on the ticks before it becomes a loss type, and rows that only describe how a loss unfolded (never in profit, gave profit back) become "shapes", not reasons. The list is sorted into those groups when the first types are built (inc-3). The expert reviews this draft list after the software works (D-11).
 
 **Level:** trade, basket (a group of orders managed together, as in a grid), run (a pattern across the whole test).
 **Needs:** T = trades and ticks (always available) · J = MT4 tester journal · P = EA profile (a small file where the expert states what the EA is supposed to do: hours, max lot, max positions, risk per trade) · D = decision log (EAs with source) · C = news calendar.

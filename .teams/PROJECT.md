@@ -19,7 +19,7 @@ The team's EA expert runs any MT4 expert advisor over a full year of real ticks,
 - A new defect is added by creating one file plus its tests, following `docs/ADDING_A_DEFECT.md`. Proven by adding one through Claude Code with a one-sentence request.
 - A fast local app lists defects, filters them any way the expert likes (saved views), ranks defect types by money, and replays the ticks of any trade with the proof drawn on it.
 - The app's chart and tools look and work like MT4, checked side by side with the real MT4 and signed off by the team; inspection happens in the app, MT4 only executes the EA in the background (D-21).
-- Classifying why a trade lost is the core of the product, and it is hard. A loss can have several reasons, or none (D-24). One click opens the trade on the chart with replay.
+- Classifying why a trade lost is the core of the product, and it is hard. A loss can have several reasons, or none (D-24). Reasons are scored in money against the loss and must pass a gate; the Losses screen lists every loss from the biggest, with types that can be switched on and off, as designed in `.teams/LOSSES.md` (D-26). One click opens the trade on the chart with replay.
 - Clicking a defect moves our MT4-style chart to that moment and draws entry, exit, stop, target and the defect. "Open in real MT4" shows the same moment in MT4 itself (optional extra, D-21).
 - The expert can install and run it on his own PC from the GitHub repository with one setup step.
 - Time-bound duties: until 2026-12-31: tick sync keeps topping up, owner builder (tooling), expert or user (running it).
