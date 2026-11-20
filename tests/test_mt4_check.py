@@ -84,3 +84,14 @@ def test_extra_probe_ticks_are_not_identical(tmp_path):
     result = check_probe_ticks(store, probe, "XAUUSD", DAY, DAY)
 
     assert not result.identical
+
+
+def test_empty_probe_is_not_identical(tmp_path):
+    store = _store(tmp_path)
+    probe = tmp_path / "probe.bin"
+    probe.write_bytes(b"")
+
+    result = check_probe_ticks(store, probe, "XAUUSD", DAY, DAY)
+
+    assert not result.identical
+    assert result.probe_ticks == 0

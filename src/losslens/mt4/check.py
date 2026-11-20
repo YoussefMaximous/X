@@ -79,7 +79,8 @@ def check_probe_ticks(
             )
     skipped_end = max(0, len(store_rows) - start - len(probe_rows))
     identical = (
-        time_differences == 0
+        bool(probe_rows)
+        and time_differences == 0
         and bid_differences == 0
         and len(probe_rows) <= max(0, len(store_rows) - start)
     )
