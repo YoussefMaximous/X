@@ -224,7 +224,7 @@ $ git ls-files data node_modules .venv
 (no output)
 ```
 
-Full `git status --short` shows only the Lead's uncommitted `.teams/ARCHITECTURE.md` and `.teams/PROJECT.md` edits (not mine), plus this report and HANDOFF when they are written. Nothing under `data/`, `node_modules/` or `.venv/` is tracked or untracked-but-not-ignored. `data/` is ignored at `.gitignore:1`.
+Full `git status --short` was clean at the end (the Lead committed its `.teams` edits concurrently). Nothing under `data/`, `node_modules/` or `.venv/` is tracked or untracked-but-not-ignored. `data/` is ignored at `.gitignore:1`.
 
 ## What was ruled out
 
