@@ -28,7 +28,7 @@ All checks passed!
 exit=0
 
 $ python -m ruff format --check .
-58 files already formatted
+59 files already formatted
 exit=0
 
 $ python -m mypy

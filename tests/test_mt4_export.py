@@ -117,5 +117,8 @@ def test_fxt_bytes_for_five_ticks_across_two_minutes():
 
     assert result == expected
     assert result[216:220] == struct.pack("<i", 2)
-    assert result[0:216] == template[0:216]
+    patched = set()
+    for offset in (216, 220, 224, 252, 472, 476):
+        patched.update(range(offset, offset + 4))
+    assert all(result[index] == template[index] for index in range(728) if index not in patched)
     assert len(result) == export.FXT_HEADER_SIZE + 5 * export.FXT_RECORD_SIZE
