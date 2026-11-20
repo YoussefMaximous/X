@@ -1,7 +1,4 @@
-from datetime import date
-
 import pyarrow as pa
-
 from losslens.ticks import dukascopy
 from losslens.ticks.store import SCHEMA
 
