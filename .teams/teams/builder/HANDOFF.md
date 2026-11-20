@@ -41,6 +41,14 @@ Expected: 87 tests pass; all tools exit 0.
 - The user must decide whether to log the copy in once; the software will not do it.
 - `data/` (including the copy) is ignored; no `.ex4`, `.fxt`, `.hst` or MT4 program is tracked.
 
+## When you finish
+
+The last thing you do, after the report file is written, is run this from the loss-lens folder. It is how the Lead hears you. The id stays as written. The sentence in quotes is the one the brief names.
+
+```text
+agent --resume d074dc17-1115-46e0-b57c-867454a73cdc -p --trust --workspace C:\Users\yr471\Projects\loss-lens "Report inc-2b4 is ready"
+```
+
 ## Next step
 
-Lead reviews the two fixes and the retry output; a logged-in copy is still needed for the tick comparison.
+Send-back 2's code is accepted. Do "Send-back 3 of part B" in `.teams/increments/inc-2.md`: write our ticks into the `.fxt` using the measured header. Do not start either MT4. End by running the command above.

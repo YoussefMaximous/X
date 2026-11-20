@@ -553,3 +553,40 @@ Do not start the user's MT4. Do not open `accounts.ini`. Do not type a login or 
 **Done when:** the four tools exit 0, and the retry's command line and result are in the report.
 
 **Return:** `.teams/teams/builder/work/report-inc-2b3.md` and an updated `HANDOFF.md`. Then tell the user: "Report inc-2b3 is ready".
+
+## Judgment on send-back 2 (filled in by the Lead, 2026-11-21)
+
+**builder: the two code fixes are accepted.** 87 tests passed on that code. The copy retry still stops on "Open an Account", which was expected. The Lead's separate run on the already logged-in terminal is what measured the file layout below.
+
+## How you tell the Lead you are finished
+
+The last action of every job, after the report file is written, is this command. It is the only way a finished report reaches the Lead. Run it from the loss-lens folder. Do not skip it, and do not change the id.
+
+```text
+agent --resume d074dc17-1115-46e0-b57c-867454a73cdc -p --trust --workspace C:\Users\yr471\Projects\loss-lens "Report inc-2b4 is ready"
+```
+
+The quoted sentence is the one the brief names. For this next job it is `Report inc-2b4 is ready`.
+
+## Send-back 3 of part B: write our ticks into MT4's file
+
+Do not start either MT4. Do not open `accounts.ini`. Do not type a login or a password. The Lead will run the file you write.
+
+`data/mt4/measured/XAUUSD1_0.fxt` is the file MT4 itself wrote (not in git; it is on this PC). It is version 405, a 728-byte header, then 56-byte records. Use that header as the template. Change only these integers, and leave every other header byte as MT4 wrote it:
+
+| Byte | What to write |
+|---|---|
+| 216 | number of minute bars, as a 4-byte integer |
+| 220 | server time of the first bar, 4-byte integer |
+| 224 | server time of the last bar, 4-byte integer |
+| 252 | the spread passed to the command, 4-byte integer |
+| 472 | server time of the first tick's second, 4-byte integer |
+| 476 | server time of the last tick's second plus one, 4-byte integer |
+
+Each record is 56 bytes, one per stored tick, in store order: bar time as an 8-byte integer (the minute, in server seconds); open, high, low, close as 8-byte doubles (bid, rounded to 2 decimals, the state of that minute so far); volume as an 8-byte integer (how many ticks of that minute so far); the tick's own server second as a 4-byte integer; a 4-byte zero. Server time is the same rule the `.hst` writer already uses.
+
+`mt4 export` for one day writes this file at `tester/history/XAUUSD1_0.fxt` in the copy and makes it read-only. `--no-fxt` still writes only the `.hst`. A test builds five ticks across two minutes and checks the header bytes that must change and the two records, against bytes written out by hand in the test.
+
+**Done when:** the four tools exit 0, and `mt4 export` of 2026-03-03 (no `--no-fxt`) writes a file whose size is 728 plus 56 times 554076.
+
+**Return:** `.teams/teams/builder/work/report-inc-2b4.md` and an updated `HANDOFF.md`. Then run the command above.
