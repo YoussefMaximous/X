@@ -66,3 +66,17 @@ Why: The user requires the tool to be extremely accurate. An expert who catches 
 Alternatives rejected: trusting the MT4 report as-is; statistical or model-judged tagging: not checkable by eye.
 Supersedes: none
 Decided by: Lead
+
+## D-10 · 2026-11-20 · ALL
+Decision: The project lives in a private GitHub repository, https://github.com/YoussefMaximous/loss-lens. The builder commits locally and never pushes. The Lead pushes `main` after accepting an increment, so GitHub only ever holds reviewed work.
+Why: The user asked for a GitHub repository; the expert will open it in Claude Code. Pushing only after review keeps unreviewed code from reaching him.
+Alternatives rejected: public repository: the tool is the team's own. Builder pushes directly: unreviewed work would reach the expert.
+Supersedes: none
+Decided by: user (repository), Lead (push rule)
+
+## D-11 · 2026-11-20 · SETUP
+Decision: The expert reviews the defect catalogue after the software is finished, not before. Until then catalogue v1 stands as the Lead wrote it.
+Why: The user's choice.
+Alternatives rejected: asking the expert now.
+Supersedes: none
+Decided by: user

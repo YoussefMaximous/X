@@ -15,7 +15,7 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - The user reads little: keep messages to him short and plain.
 
 ## State and how to check it
-- Repository `C:\Users\yr471\Projects\loss-lens`, branch `main`, local only (no remote).
+- Repository `C:\Users\yr471\Projects\loss-lens`, branch `main`, remote `origin` = https://github.com/YoussefMaximous/loss-lens (private). Only the Lead pushes, after accepting an increment (D-10).
 - `.teams/` written; inc-1 (tick store) briefed, not started by the builder as of this handoff.
 - Check state with: `git log --oneline -10`, `git status --short`, then look for `.teams/teams/builder/work/report-inc-1.md`.
 
@@ -34,7 +34,8 @@ D-1 to D-9 in `.teams/DECISIONS.md`.
 - A rule-builder screen as the way to add defects (D-8).
 
 ## Waiting on
-- User: paste the builder kickoff; install MT4 from the team's broker and say the gold symbol's exact name; say whether the team owns Tick Data Suite; approve creating a private GitHub repository; ask the expert which defects he wants that the catalogue lacks.
+- User: paste the builder kickoff (he said he will); install MT4 from the team's broker and log in to a demo once (the Lead then reads the gold symbol's name from the terminal); say whether the team owns Tick Data Suite.
+- Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
 - Builder: report for inc-1.
 
 ## Open

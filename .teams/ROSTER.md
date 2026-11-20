@@ -18,7 +18,8 @@ Current state only. History goes in DECISIONS.md, which only the Lead writes.
 - Never commit anything under `data/`, `node_modules/` or `.venv/`.
 - Times are UTC epoch milliseconds everywhere (D-4).
 - A check counts only if it was run. Paste the real command and its real output in the report.
-- Nothing leaves this PC without the user's approval: no GitHub push, no uploads. Downloads only from Dukascopy (through `dukascopy-node`), npm and PyPI.
+- The builder commits locally and never pushes. Only the Lead pushes to GitHub (`origin`, private), and only work it has reviewed and accepted (D-10).
+- Nothing else leaves this PC without the user's approval: no uploads. Downloads only from Dukascopy (through `dukascopy-node`), npm and PyPI.
 
 ## Teams
 
