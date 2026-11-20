@@ -1,6 +1,6 @@
 # Increment inc-1: Tick store
 
-Planned: 2026-11-20 · Status: planned · Phase: prototype
+Planned: 2026-11-20 · Status: sent back once (2026-11-20), see "Send-back 1" at the end · Phase: prototype
 
 ## Goal
 A local, validated store of XAUUSD 2026 ticks that one command fills and tops up, that any other tick CSV can be imported into, and that every later part reads through one function.
@@ -120,5 +120,72 @@ Things you must respect:
 
 Then overwrite `.teams/teams/builder/HANDOFF.md` and tell the user in one line that the report is ready.
 
-## Judgment (filled in by the Lead)
-- builder: pending
+## Judgment (filled in by the Lead, 2026-11-20)
+
+**builder: send back, five small items. The tick data itself is accepted and does not need downloading again.**
+
+What the Lead ran on this PC (measured):
+- All nine checks pass: 21 tests; forced re-download of 2026-03-03 gives 554,076 rows with the expected first and last timestamps, `bid_vol` 90 and `ask_vol` 120 in the right columns, zstd; Saturday recorded `empty` with no file; second run 1.0 s; full sync tops up today in 13 s; verify exit 0; query 15–27 ms; nothing under `data/` visible to git.
+- Independent of the builder's code: 2026-06-16 and 2026-10-27 downloaded again with plain `dukascopy-node` are identical to the stored files in every column (288,894 and 217,126 rows).
+- Hard kill (not Ctrl+C) in a scratch store at 15 s: no `.tmp`, manifest readable, finished day intact; the restart skipped it and finished; the four days are identical to the main store.
+- Manifest against files: 324 entries, 277 files, every row count and first/last timestamp agrees, no row outside its UTC day, no file without an entry.
+- All 184 gaps longer than 300 s are explained: 179 are the daily one-hour break, 4 are US-holiday early closes (19 Jan, 16 Feb, 25 May, 7 Sep), 1 is a 469 s quiet spell at 23:01 UTC on 12 Feb. No hour is silently missing.
+
+What is wrong (measured):
+1. A setup problem is treated as a failed day and retried. With `dukascopy-node` not installed, a 3-day sync took 45.9 s and printed the same message three times; a year would take over an hour to fail. The brief said to stop with a message.
+2. Download temp folders are left behind after an interruption (3 `losslens-duka-*` folders found in the temp folder).
+3. `ticks verify` does not compare the manifest with the files, so a deleted or truncated day file would go unnoticed.
+4. The store location depends on the folder the command is run from. Run from anywhere else, it silently starts a second, empty store.
+5. No formatter, linter or type checker yet (the builder's question 1; `QUALITY.md` section 7 was written after this brief).
+
+Answers to the builder's questions:
+- Question 1: `ruff` and `mypy`, now, in this send-back (item 5).
+- Question 2: confirmed, `tests/test_no_live_trading.py` arrives in inc-2 with the first MT4 code.
+- Question 3: `losslens doctor` and the per-run log arrive in inc-2 with the runner.
+
+Decisions logged: D-18.
+
+## Send-back 1: brief for the builder
+
+Fix exactly these five items. Do not change the storage contract, the stored data, or anything else. Same rules as the inc-1 brief.
+
+**Allowed new dependencies (dev only):** `ruff`, `mypy`. Nothing else.
+
+**1. Setup problems stop the sync at once.**
+- These are setup problems, not failed days: no Dukascopy mapping for the symbol, `npx` not found, `dukascopy-node` not installed, no Chrome or Edge.
+- Raise a distinct `SetupError` for them. `sync_days` must not retry it and must not carry on to the next day. `ticks sync` prints one line, `setup problem: <what is wrong and what to do>`, to stderr and exits with code 2. No day is recorded.
+- Tests: a fake download that raises `SetupError` is called exactly once for a three-day range, and the error reaches the caller; an ordinary download error is still retried and reported as before.
+
+**2. No temp folders left behind.**
+- If a download is interrupted (including Ctrl+C), that day's temp folder is removed before the interruption carries on.
+- When a sync starts, it removes `losslens-duka-*` folders in the temp folder that are more than one hour old. Newer ones are left alone, in case another sync is running.
+- Tests for both, using a temp root passed in by the test.
+
+**3. `ticks verify` checks the manifest against the files.**
+- Per day, a `problems` list with any of: `file_missing` (status says there are ticks, no file), `unexpected_file` (status `empty`, file exists), `row_count_mismatch`, `first_last_mismatch`, `rows_outside_day`.
+- Summary: `integrity_problems` (count) and `files_not_in_manifest` (list of day files with no manifest entry). Print both.
+- Exit code 1 if there are out-of-order rows, or any integrity problem, or any file not in the manifest.
+- Tests: one per problem type, plus one clean store that exits 0.
+
+**4. One store, wherever the command is run from.**
+- The data folder is: the `LOSSLENS_DATA` environment variable if set; otherwise `<repository root>/data`, where the repository root is found by walking up from the `losslens` package folder to the folder that holds `pyproject.toml`; only if that fails, `data` under the current folder.
+- `node_modules` is looked for under the same repository root, and `dukascopy-node` is run with that root as its working folder.
+- `read_ticks(symbol, from_ms, to_ms)` keeps its signature and uses the same rule.
+- Remove the "run from the repository root" requirement from the README.
+- Tests: `LOSSLENS_DATA` is honoured; the repository root is found from the package location.
+
+**5. Formatter, linter, type checker, and tests on GitHub.**
+- `pyproject.toml`: add `ruff` and `mypy` to the `dev` extras. Ruff: line length 100, rules `E`, `F`, `I`, `B`, `UP`. Mypy: `strict = true` on `src/losslens`; `ignore_missing_imports` for `pyarrow.*` only.
+- No bare `# type: ignore`: each one names its error code. If more than ten are needed, stop and report instead of adding them.
+- Add `.github/workflows/ci.yml`: on push and pull request, `windows-latest`, Python 3.11 and 3.13, `pip install -e .[dev]`, then `ruff check .`, `ruff format --check .`, `mypy`, `pytest -q`. You cannot push, so you cannot run it; the Lead checks it after pushing.
+- Add these four commands to the README under "Tests".
+
+**Done when** (the Lead runs these):
+1. `python -m pytest -q`, `python -m ruff check .`, `python -m ruff format --check .` and `python -m mypy` all exit 0.
+2. With `node_modules` renamed away, `python -m losslens ticks sync --symbol XAUUSD --from 2026-03-03 --to 2026-03-06 --force` exits 2 in under 5 seconds with one `setup problem:` line, and the manifest is unchanged. (Rename it back afterwards.)
+3. From `C:\Users\yr471`, `python -m losslens ticks status --symbol XAUUSD` shows the same store as from the repository root (324 days or more), and no `data` folder appears in `C:\Users\yr471`.
+4. `python -m losslens ticks verify --symbol XAUUSD` exits 0 and prints `Integrity problems: 0`. After the Lead deletes one day file in a copy of the store, it exits 1 and names that day.
+5. After a sync is stopped with Ctrl+C mid-download, no `losslens-duka-*` folder from that run remains.
+6. The stored data is untouched: `ticks status` still shows the same completed days and tick counts for them.
+
+**Return:** `.teams/teams/builder/work/report-inc-1b.md` in the same form as before (summary of 10 lines or fewer, then each check with its real command and output), and an updated `HANDOFF.md`.

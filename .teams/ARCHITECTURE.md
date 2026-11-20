@@ -21,7 +21,7 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 |---|---|---|
 | Tick store | One Parquet file per UTC day, plus a manifest. Single read API `read_ticks(symbol, from_ms, to_ms)`. | Python, pyarrow, DuckDB |
 | Downloader | Day-by-day sync from Dukascopy, resumable. | `dukascopy-node` 1.51.1 (pinned), called from Python |
-| MT4 export | Writes MT4 history from the tick store with the broker's server-time offset. | Python |
+| MT4 export | Writes two things from the tick store for the chosen date range: the chart history (M1 bars, `.hst`) and the tester's tick file (`.fxt`) holding the real ticks. See "MT4 export". | Python |
 | Runner | Starts the MT4 tester from a config file, waits, collects the report and the journal. A seam: `mt4-native` first; `tick-data-suite`, `mt5` or `csv-import` can be added without touching the rest. Two modes, same machinery: **quick run** and **analysed run** (see "One software, two uses"). | Python + MT4 |
 | Reference EA | Test EA with source, many trades a day, several rule gates, writes a decision log. Stands in until the expert's EA is plugged in. | MQL4 |
 | EA profile | Small file where the expert states what the EA is meant to do (hours, max lot, max positions, risk per trade). Lets rule-breaking be detected even for compiled EAs. | TOML |
@@ -42,6 +42,18 @@ It is one program with one Run screen. The expert uses it in two ways: he lets i
 - **Missing ticks never pass silently.** If the chosen range has days that are not stored, the run does not start; it names the days and offers the download button.
 - **Prepared history is reused.** A range that was prepared before starts without being rebuilt, so repeat runs are fast.
 - To confirm in inc-2: that MT4 can be left open on the finished test, and that visual mode can be switched on, from the start file.
+
+## MT4 export (D-18)
+
+MT4 needs two different files, and they do different jobs.
+
+- **Chart history, `.hst` (M1 bars).** This is what MT4 charts show, so it is what the click-to-chart jump lands on. Built by the method the user already used in another project (`C:\Users\yr471\OneDrive\Desktop\mt4-xasu-work\convert_to_mt4.py`, read-only reference): bid price, one bucket per minute, first / highest / lowest / last tick, volume = tick count, file named `<SYMBOL>1.hst`.
+- **Tester tick file, `.fxt` (real ticks).** With only M1 bars, MT4's "Every tick" mode invents the path inside each minute. The EA would then be filled at prices and times that never happened, every finding would rest on made-up ticks, and reconciliation (D-9) would fail. So the tester is given the real ticks in its own `.fxt` file.
+- **Two corrections to the reference method:**
+  1. *Server time follows US daylight saving.* A fixed +2 hours is right only in winter. Measured in our ticks: the daily break starts at 20:59 UTC from 2026-03-09 and at 21:59 UTC from 2026-11-02, so the broker's clock is UTC+3 between those dates and UTC+2 outside them. The reference export covers 2026-10-29 and 2026-10-30 with +2, which puts those two days one hour off. The offset is computed per tick from the date, and confirmed against the installed terminal.
+  2. *Prices are rounded to the broker's decimals before writing,* not only labelled. Dukascopy quotes gold to 3 decimals; IC Markets to 2 (from the user's note, to confirm on the terminal). The rounding (at most 0.005) is allowed for in reconciliation.
+- **Not yet proven in a real MT4** (no MT4 on this PC yet; the reference files were checked as files only). inc-2 proves, in this order: MT4 shows our `.hst` correctly; the tester uses our `.fxt` instead of rebuilding its own; the largest `.fxt` it accepts; the modelling quality it reports. The `.hst` is written in MT4's current format (version 401) unless the terminal shows it needs the older version 400 the reference uses.
+- The tester still applies one fixed spread to a run. Real spread is brought back by the defect engine, as before.
 
 ## Data tab (D-16, D-17)
 

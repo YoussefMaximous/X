@@ -122,3 +122,10 @@ Why: The user's requirement, in his words: show "2026 package is downloaded unti
 Alternatives rejected: only a day-by-day calendar: does not answer "which years do I have" at a glance. A typed-in list of years: goes wrong when the source changes.
 Supersedes: the "Data screen" wording in D-16
 Decided by: user
+
+## D-18 · 2026-11-20 · ALL
+Decision: The MT4 export writes both a chart history file (`.hst`, M1 bars, by the method from the user's other project) and a tester tick file (`.fxt`, the real ticks). Two corrections to that method: the server-time offset follows US daylight saving instead of a fixed +2 hours, and prices are rounded to the broker's decimals before writing. Details in ARCHITECTURE.md, "MT4 export". inc-2 proves both files in a real MT4 before anything is built on them.
+Why: The user supplied his working `.hst` method. It is right for charts. For testing, M1 bars alone make MT4 invent the ticks inside each minute, which would make findings wrong and break D-9. Measured in our ticks: the daily break moves from 20:59 to 21:59 UTC on 2026-11-02 (and back on 2026-03-09), so a fixed offset is an hour off for part of the year, including the first two days of the reference export.
+Alternatives rejected: `.hst` only: interpolated ticks. Tick Data Suite: paid, and the user has not said the team owns it; the runner seam keeps it possible.
+Supersedes: none
+Decided by: Lead, on the user's input
