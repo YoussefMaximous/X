@@ -16,9 +16,11 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 
 ## State and how to check it
 - Repository `C:\Users\yr471\Projects\loss-lens`, branch `main`, remote `origin` = https://github.com/YoussefMaximous/loss-lens (private). Only the Lead pushes, after accepting an increment (D-10).
-- inc-1 (tick store) was reviewed on 2026-11-20 and sent back once with five small items ("Send-back 1" at the end of `.teams/increments/inc-1.md`). The tick data is accepted: 2026-01-01 to 2026-11-20, 84M ticks, 0.5 GB, in `data/` (not in git).
-- `main` is ahead of `origin` and must not be pushed until the send-back is accepted (D-10).
-- Check state with: `git log --oneline origin/main..main`, `git status --short`, then look for `.teams/teams/builder/work/report-inc-1b.md`.
+- inc-1 (tick store) has been reviewed twice on 2026-11-20. The tick data is accepted: 2026-01-01 to 2026-11-20, 84M ticks, 0.5 GB, in `data/` (not in git). Send-back 1 fixed four of five items. Send-back 2 (three items, at the end of `.teams/increments/inc-1.md`) is with the builder: Ctrl+C hangs during a download because `npx.cmd` is a batch file; two small gaps in `ticks verify`.
+- `main` is ahead of `origin` and must not be pushed until send-back 2 is accepted (D-10). After pushing, check that the GitHub workflow (`.github/workflows/ci.yml`) runs green.
+- Check state with: `git log --oneline origin/main..main`, `git status --short`, then look for `.teams/teams/builder/work/report-inc-1c.md`.
+- MT4 (measured 2026-11-20 17:45): installed at `C:\Users\yr471\AppData\Roaming\MetaTrader 4 IC Markets Global\terminal.exe`, MetaTrader 4 build 1492, 32-bit, signed by MetaQuotes, "IC Markets (SC) MT4", and that folder is also its data folder. It has not connected to a demo account yet: the log shows no login, there is no `history\<server>` folder, and the symbol list is MT4's built-in default (which is why it lists "GOLD"). The last scanned server is `ICMarketsSC-Demo01`. The gold symbol's real name, its decimals and the server clock can only be read after a login.
+- How to send a real Ctrl+C from a script on this PC: start a driver with `Start-Process python ... -WindowStyle Hidden` (own console), let it start the command as a child, then call `ctypes.windll.kernel32.GenerateConsoleCtrlEvent(0, 0)`; the driver ignores SIGINT. Use `-PassThru` and `WaitForExit`, not `-Wait`, and kill the tree afterwards.
 
 ## Done (with evidence)
 - measured: `dukascopy-node` 1.51.1 downloads XAUUSD ticks on this PC when `NODE_OPTIONS=--use-system-ca` is set and `--chrome-path` points at Chrome. One day takes about 7 s.
@@ -40,7 +42,8 @@ D-1 to D-18 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, 
 ## Waiting on
 - User: paste the builder kickoff (he added "install MT4" to it; the brief now tells the builder not to, D-13); install IC Markets' MT4 himself and open a demo account (the Lead then checks it is MetaTrader 4 and reads the gold symbol's name and server time); say whether the team owns Tick Data Suite.
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
-- Builder: report for the send-back, `report-inc-1b.md`.
+- Builder: report for send-back 2, `report-inc-1c.md`.
+- User: open MT4, finish opening the demo account inside the terminal so it connects, open a gold chart, then say so.
 
 ## Open
 - MT4's real limits for a year of ticks (measure in inc-2), and the chunking or thinning choice that follows.
@@ -48,7 +51,7 @@ D-1 to D-18 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, 
 - Setup on the expert's PC (his MT4, his broker's symbol name and server time).
 
 ## Next step
-When the builder reports the send-back, run its six "Done when" checks myself. If they pass: accept inc-1, push `main`, confirm the GitHub checks run green, then brief inc-2 (MT4 run spike: prove `.hst` and `.fxt` in a real MT4, reference EA, quick run from the command line, journal capture, guard test, `losslens doctor`, per-run log). inc-2 cannot be verified until the user has installed MT4.
+When the builder reports send-back 2, run its five "Done when" checks myself. If they pass: accept inc-1, push `main`, confirm the GitHub checks run green, then brief inc-2 (MT4 run spike: prove `.hst` and `.fxt` in a real MT4, reference EA, quick run from the command line, journal capture, guard test, `losslens doctor`, per-run log). inc-2 cannot be verified until the user has installed MT4.
 
 ## Files
 `.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`, `.teams/DEFECTS.md`, `.teams/ROSTER.md`, `.teams/DECISIONS.md`, `.teams/KICKOFF.md`, `.teams/increments/inc-1.md`, `.teams/teams/builder/CHARTER.md`, `AGENTS.md`.

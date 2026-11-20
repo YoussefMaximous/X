@@ -49,7 +49,7 @@ The team's EA expert runs any MT4 expert advisor over a full year of real ticks,
 - The builder can open and edit `C:\Users\yr471\Projects\loss-lens`. Confirm with: user.
 
 ## Open questions
-- MT4 from IC Markets is to be installed here by the user, with a demo account (D-13). The exact gold symbol name (standard is XAUUSD; brokers may use GOLD or add a suffix) is read by the Lead from the installed terminal, not asked of the user.
+- MT4 from IC Markets is installed here (build 1492, in `C:\Users\yr471\AppData\Roaming\MetaTrader 4 IC Markets Global`, measured 2026-11-20) but has not yet connected to a demo account (D-13). The exact gold symbol name (standard is XAUUSD; brokers may use GOLD or add a suffix) is read by the Lead from the installed terminal, not asked of the user.
 - Real limits of MT4's tester on this build (history file size, speed for ~130M ticks), owner: builder, measured in inc-2.
 - Whether the team owns Tick Data Suite (would give real variable spread inside MT4), owner: user.
 - Defects the expert wants that are missing from catalogue v1, owner: user, asked after the software is finished (D-11).

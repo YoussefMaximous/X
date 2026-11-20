@@ -1,6 +1,6 @@
 # Increment inc-1: Tick store
 
-Planned: 2026-11-20 · Status: sent back once (2026-11-20), see "Send-back 1" at the end · Phase: prototype
+Planned: 2026-11-20 · Status: sent back twice (2026-11-20), current brief is "Send-back 2" at the end · Phase: prototype
 
 ## Goal
 A local, validated store of XAUUSD 2026 ticks that one command fills and tops up, that any other tick CSV can be imported into, and that every later part reads through one function.
@@ -189,3 +189,43 @@ Fix exactly these five items. Do not change the storage contract, the stored dat
 6. The stored data is untouched: `ticks status` still shows the same completed days and tick counts for them.
 
 **Return:** `.teams/teams/builder/work/report-inc-1b.md` in the same form as before (summary of 10 lines or fewer, then each check with its real command and output), and an updated `HANDOFF.md`.
+
+## Judgment on send-back 1 (filled in by the Lead, 2026-11-20)
+
+**builder: four of the five items accepted. One fails, and two small gaps were found. Sent back a second time with three items.**
+
+What the Lead ran (measured):
+- Check 1: 35 tests pass; `ruff check`, `ruff format --check` and `mypy` exit 0; no `type: ignore` and no `noqa` anywhere.
+- Check 2: with `node_modules` renamed, the forced sync exits 2 in 0.64 s with one `setup problem:` line; manifest hash unchanged.
+- Check 3: from `C:\Users\yr471` the same store is shown (324 days); no `data` folder appears there.
+- Check 4: real store exits 0 with `Integrity problems: 0`. In a tampered copy (one file deleted, one copied onto an empty day, one overwritten by its neighbour) all three days are named with the right problem types and the exit code is 1.
+- Check 6: no day file was modified since the first review.
+- Check 5 fails. A real Ctrl+C sent 5 s into a download: the sync had not exited after 40 s and printed nothing. `node` had stopped, but the `cmd.exe` that runs `npx.cmd` was still alive with no child: it was waiting at its hidden "Terminate batch job (Y/N)?" prompt, and Python cannot raise the interruption until that process ends. The unit test passes because it fakes the interruption inside Python.
+- The same Ctrl+C against `node <repo>\node_modules\dukascopy-node\dist\cli\index.js` run directly with `stdin=DEVNULL` (the Lead's own test script): interrupted in 0.1 s, no process left behind.
+- A stray day file placed at `2025/2025-12-30.parquet` (before the manifest's first day) was not reported by `ticks verify`.
+- `ticks verify` prints `Quality report: data/reports/...` even when `LOSSLENS_DATA` sends the report somewhere else.
+
+## Send-back 2: brief for the builder
+
+Fix exactly these three items. No new dependencies. Do not touch the stored data.
+
+**1. Ctrl+C during a download must stop the sync within seconds.**
+- Do not go through `npx` (on Windows it is a batch file, and `cmd.exe` holds the process open at a hidden prompt). Run the downloader with `node` directly: find `node` with `shutil.which("node")`, and take the script path from the `bin` entry named `dukascopy-node` in `<repository root>/node_modules/dukascopy-node/package.json` (today it is `./dist/cli/index.js`; read it, do not hard-code it).
+- Pass `stdin=subprocess.DEVNULL` to the child.
+- `node` not found, or the `bin` entry missing, is a `SetupError`.
+- All the arguments, `NODE_OPTIONS`, the working folder, the timeout and the temp-folder cleanup stay as they are.
+- Update the README and the setup messages where they mention `npx`.
+- Tests: the command list starts with the `node` path and the script path read from `package.json`; a missing `bin` entry raises `SetupError`.
+
+**2. `ticks verify` with no `--from` and no `--to` checks every day file under the symbol folder,** including files dated before the first manifest day or after the last. With a range given, it stays limited to that range. Test: a day file dated before the first manifest entry is listed in `files_not_in_manifest` and the exit code is 1.
+
+**3. `ticks verify` prints the path the report was really written to.** Test: with `LOSSLENS_DATA` set, the printed path is under that folder.
+
+**Done when** (the Lead runs these):
+1. `python -m pytest -q`, `python -m ruff check .`, `python -m ruff format --check .` and `python -m mypy` all exit 0.
+2. A real Ctrl+C sent 5 seconds into `python -m losslens ticks sync --symbol XAUUSD --from 2026-03-02 --to 2026-03-06` (with `LOSSLENS_DATA` pointing at an empty scratch folder) ends the command with exit code 130 within 5 seconds; no `losslens-duka-*` folder from that run remains; no `node.exe` or `cmd.exe` from that run is still alive.
+3. `python -m losslens ticks sync --symbol XAUUSD --from 2026-03-03 --to 2026-03-04 --force` still gives 554076 rows with first `ts_ms` 1772496001086 and last `ts_ms` 1772582399247.
+4. In a copy of the store with a stray `2025/2025-12-30.parquet`, `ticks verify` lists 2025-12-30 under "Files not in manifest" and exits 1; the printed report path is inside the copy.
+5. `ticks verify` on the real store still exits 0.
+
+**Return:** `.teams/teams/builder/work/report-inc-1c.md` in the same form, and an updated `HANDOFF.md`. You do not need to produce a real Ctrl+C yourself; say so under "not verified" if you did not.
