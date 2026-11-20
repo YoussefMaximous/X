@@ -529,3 +529,27 @@ One hole to fix before a comparison result is trusted: an empty probe file curre
 
 ## Waiting on the user
 He logs the copy in himself, once, if he wants the tick comparison to be possible. The Lead does not type the login and does not ask for the password.
+
+## What the Lead measured after that (2026-11-21)
+
+The copy cannot run a test. The already logged-in terminal can, and the Lead ran one day there without typing a login and without a password being written anywhere. The files added for that run were removed afterwards. The report, the probe info, the tester log and the `.fxt` MT4 wrote are kept in `data/mt4/measured/` (not in git).
+
+Measured, build 1492, XAUUSD, 2026-03-03, spread setting 30:
+- The argument that starts the tester is the path of the ini file itself. `/config:` in front of the path is ignored: the terminal opens and the tester settings stay untouched.
+- Digits 2, point 0.01. Ask minus bid was 0.30 on every one of the 471,348 ticks the probe was given.
+- MT4 modelled 471,448 ticks from the minute bars (modelling quality 23.16%, mismatched charts 0). The stored day has 554,076 real ticks. This run did not feed MT4 our ticks; it let MT4 invent them. The `.fxt` it wrote is version 405, 728-byte header, 56-byte records, 471,448 of them.
+- The probe placed no trade. Symbol settings read from the terminal: tick size 0.01, lot size 100, minimum lot 0.01, lot step 0.01, maximum lot 100.
+
+## Send-back 2 of part B: brief for the builder
+
+Do not start the user's MT4. Do not open `accounts.ini`. Do not type a login or a password. The Lead already ran that terminal once.
+
+**1. The run command must pass the ini path itself.** In `mt4 run`, the arguments are `/portable` and the absolute path of `losslens_start.ini`. There is no `/config:` prefix. A test asserts the arguments of a run are exactly those two.
+
+**2. An empty probe file is not a match.** If the probe file has no records, `check-ticks` prints `RESULT: different`.
+
+**3. One retry, on the copy only.** `mt4 compile`, `mt4 export --no-fxt` for 2026-03-03, then `mt4 run` for that day with `--spread 30 --timeout 180`. If a report or a non-empty `.fxt` appears, inspect it and put the numbers in the report. If the "Open an Account" window appears, let the timeout end it and stop.
+
+**Done when:** the four tools exit 0, and the retry's command line and result are in the report.
+
+**Return:** `.teams/teams/builder/work/report-inc-2b3.md` and an updated `HANDOFF.md`. Then tell the user: "Report inc-2b3 is ready".
