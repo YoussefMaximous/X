@@ -45,3 +45,24 @@ Why: The user left the choice to the Lead. A reference EA we control exercises e
 Alternatives rejected: MT4's bundled sample EAs: too few rules and trades. A downloaded third-party EA: unknown quality and licence.
 Supersedes: none
 Decided by: Lead
+
+## D-7 · 2026-11-20 · ALL
+Decision: The end user is the team's EA expert, and the subject is defects, not only losses: any nameable problem in how the EA traded, including fragile winners, risk and sizing problems, patterns across the run, broken rules and order errors. Catalogue v1 is `.teams/DEFECTS.md`. The tool ships to the expert through a private GitHub repository.
+Why: The user clarified the purpose: replace weeks of live-demo watching with a tick-data run that spots "literally any type of defect".
+Alternatives rejected: keeping the scope at losing trades: misses defects hidden inside winners and across the run.
+Supersedes: none (widens the loss-tag list in the first ARCHITECTURE.md)
+Decided by: user
+
+## D-8 · 2026-11-20 · ALL
+Decision: Detectors are plug-ins: one file per defect with declared parameters and a `detect(ctx)` function, mandatory tests, automatic discovery, a one-command check, thresholds in `defects.toml`, and a written recipe for Claude Code. Contract in ARCHITECTURE.md.
+Why: The user requires that the expert can add any defect by asking Claude Code in one sentence. That only works if a detector touches one file and cannot break the others.
+Alternatives rejected: a rule-builder screen in the app: cannot express arbitrary defects. One large rules module: every addition risks breaking the rest.
+Supersedes: none
+Decided by: Lead
+
+## D-9 · 2026-11-20 · ALL
+Decision: Accuracy rules are binding: reconcile each run with the ticks before analysis; compute measurements once in one tested module; every finding stores its proof; no detector without a must-flag, must-not-flag and threshold-edge test; hand-checked golden cases in the test suite; "not evaluated" is never shown as "no defects".
+Why: The user requires the tool to be extremely accurate. An expert who catches one wrong finding stops trusting the rest.
+Alternatives rejected: trusting the MT4 report as-is; statistical or model-judged tagging: not checkable by eye.
+Supersedes: none
+Decided by: Lead

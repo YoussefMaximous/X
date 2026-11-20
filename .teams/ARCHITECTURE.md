@@ -7,10 +7,10 @@ Updated: 2026-11-20. Evidence words: measured (ran it), checked (read primary so
 ```text
 Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 Strategy Tester (the EA runs here)
                            │                                          │
-                           │                                 trades (+ optional decision log)
+                           │                        trades, journal (+ optional decision log)
                            ▼                                          ▼
-                     Loss engine  <───────────────────────────────  Run store
-                           │  metrics, loss tags, hidden losses
+                    Defect engine  <──────────────────────────────  Run store
+                           │  reconcile, measure, run every detector
                            ▼
                       Local app  ── click ──> MT4 bridge (chart jumps to the trade)
 ```
@@ -22,12 +22,37 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 | Tick store | One Parquet file per UTC day, plus a manifest. Single read API `read_ticks(symbol, from_ms, to_ms)`. | Python, pyarrow, DuckDB |
 | Downloader | Day-by-day sync from Dukascopy, resumable. | `dukascopy-node` 1.51.1 (pinned), called from Python |
 | MT4 export | Writes MT4 history from the tick store with the broker's server-time offset. | Python |
-| Runner | Starts the MT4 tester from a config file, waits, collects the report. A seam: `mt4-native` first; `tick-data-suite`, `mt5` or `csv-import` can be added without touching the rest. | Python + MT4 |
-| Reference EA | Test EA with source, many trades a day, several rule gates, writes a decision log. Stands in until the team's EA is plugged in. | MQL4 |
-| Run store | Runs, trades, decisions, tags, notes. | DuckDB file |
-| Loss engine | Per-trade metrics from ticks, loss tags, hidden-loss re-check, baskets, streaks. Deterministic rules with thresholds in one config file. | Python |
-| App | Loss list, filters, saved views, money ranking, calendar, tick replay, what-if, version compare. | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
+| Runner | Starts the MT4 tester from a config file, waits, collects the report and the journal. A seam: `mt4-native` first; `tick-data-suite`, `mt5` or `csv-import` can be added without touching the rest. | Python + MT4 |
+| Reference EA | Test EA with source, many trades a day, several rule gates, writes a decision log. Stands in until the expert's EA is plugged in. | MQL4 |
+| EA profile | Small file where the expert states what the EA is meant to do (hours, max lot, max positions, risk per trade). Lets rule-breaking be detected even for compiled EAs. | TOML |
+| Run store | Runs, trades, journal events, decisions, findings, notes. | DuckDB file |
+| Defect engine | Reconciles the run with the ticks, computes per-trade measurements once, then runs every detector. | Python |
+| Detectors | One file per defect, discovered automatically. Catalogue in `.teams/DEFECTS.md`. | Python |
+| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
 | MT4 bridge | Small EA on an MT4 chart that reads a command file and jumps to a time, then draws the trade. | MQL4 |
+
+## Detector contract (D-8)
+
+Adding a defect must be a small, safe, self-contained job that the expert can hand to Claude Code in one sentence.
+
+- **One file per defect:** `src/losslens/defects/<id>.py`. It declares `ID`, `TITLE`, `DESCRIPTION` (plain words), `LEVEL` (trade, basket or run), `NEEDS` (ticks, journal, profile, decision log, calendar), `PARAMS` (names, defaults, meaning) and one function `detect(ctx) -> list[Finding]`.
+- **`ctx` gives everything ready-made:** the trade (or basket, or run), its precomputed measurements (R, MFE, MAE, spread at entry and exit, session, volatility, trend), and `ctx.ticks(from_ms, to_ms)`. A detector never opens files or talks to MT4.
+- **A `Finding` carries its proof:** what it is attached to, a one-line explanation, the numbers that triggered it, and the time window to show. The app draws that proof on the tick replay, so the expert can check any finding by eye.
+- **No detector without tests:** `tests/defects/test_<id>.py` must hold at least one case that must be flagged, one that must not, and one on the threshold edge. Cases are built with a small helper that makes synthetic ticks and trades, so tests need no downloads.
+- **Discovered automatically:** a new file appears in the engine, the filters and the money ranking with no other change.
+- **One command checks a new detector:** `python -m losslens defects check <id>` runs its tests, runs it on the latest stored run, and prints how many it found plus three examples.
+- **Thresholds live in `defects.toml`,** overriding the defaults in the file. Changing a threshold needs no code.
+- **The recipe is written down** in `docs/ADDING_A_DEFECT.md` and pointed to from `CLAUDE.md` and `AGENTS.md`, with a template file to copy.
+- If the detector's `NEEDS` are not available for a run (no journal, no profile), it reports "not evaluated", never "no defects".
+
+## Accuracy rules (D-9)
+
+- **Reconcile first.** Before any detector runs, every MT4 trade is checked against the tick store: its entry and exit prices must exist in the ticks at those times within a small tolerance. If too many do not, the run is marked `RUN_NOT_RECONCILED` and the app says so at the top.
+- **Measure once, in one place.** MFE, MAE, spread, session and the rest are computed by one tested module. Detectors read them; they do not recompute them.
+- **Exit side is explicit.** Longs are measured on bid, shorts on ask. This is tested.
+- **Every number is computed by code and stored with the finding.** Nothing is estimated.
+- **Golden cases.** A small set of hand-checked real trades with known answers runs in the test suite and must not change without a decision.
+- **Honest labels.** Findings that depend on thin or missing data carry `DATA_SUSPECT`. Things a backtest cannot know (real slippage, requotes, the broker's own feed) are stated in the app, not hidden.
 
 ## Facts the design rests on
 
@@ -36,44 +61,23 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 - measured: no ticks in the 22:00 UTC hour on 2026-03-03 (daily break). Saturdays return an empty file with exit code 0.
 - measured: the newest ticks are available within seconds; `-to` is exclusive.
 - measured: on this PC, Node's own certificate store rejects every HTTPS host; `NODE_OPTIONS=--use-system-ca` fixes it. Dukascopy also sits behind a web firewall challenge that `dukascopy-node` solves with a headless browser (`--chrome-path`).
-- checked (well known, re-test in inc-2): MT4's tester stores bid only and applies one fixed spread to a whole run. So spread-driven losses cannot appear in a native MT4 run. The loss engine re-checks every trade against real bid and ask to expose them.
+- checked (well known, re-test in inc-2): MT4's tester stores bid only and applies one fixed spread to a whole run. So spread-driven defects cannot appear in a native MT4 run. The defect engine re-checks every trade against real bid and ask to expose them.
 - assumed (measure in inc-2): a full-year tick history file for MT4 would be around 7 GB (130M x 56 bytes), likely above what the 32-bit tester accepts, so runs are chunked by month with warm-up, or ticks are thinned. Decide after measuring.
 
 ## Storage contract
 
 - `data/ticks/<SYMBOL>/<YYYY>/<YYYY-MM-DD>.parquet`: columns `ts_ms` int64 (UTC epoch ms), `bid` float64, `ask` float64, `bid_vol` float32, `ask_vol` float32; sorted by `ts_ms`, source order kept for equal timestamps; zstd.
 - `data/ticks/<SYMBOL>/manifest.json`: one entry per day (status, tick count, first/last timestamp, source, fetch time).
-- `data/lens.duckdb`: runs, trades, decisions, tags, notes (schema fixed in inc-2 and inc-3).
+- `data/lens.duckdb`: runs, trades, journal events, decisions, findings, notes (schema fixed in inc-2 and inc-3).
 - `data/` is git-ignored.
-
-## Loss tags, version 0 (multi-label, thresholds configurable)
-
-R = initial risk (entry to stop). MFE / MAE = best / worst excursion measured on the side the trade exits on.
-
-| Tag | Rule sketch |
-|---|---|
-| NEVER_IN_PROFIT | MFE below 0.1R |
-| GAVE_BACK | MFE at least 0.5R, then closed at a loss |
-| STOP_TOO_TIGHT | after the stop, price reached the original target within N minutes without a further 1R against |
-| SPREAD_SPIKE | exit happened while spread was above 3x its rolling median and the other side of the book had not reached the stop |
-| NEWS_SPIKE | entry or exit within X minutes of a high-impact event (needs a calendar) |
-| GAP_THROUGH_STOP | fill worse than the stop by more than Y |
-| COUNTER_TREND | against the higher-timeframe trend |
-| WHIPSAW | three or more losses in alternating directions inside 30 minutes |
-| OVERSIZED | lot above 2x the run's median lot |
-| COSTS_ONLY | gross result not negative, net result negative |
-| THIN_MARKET | within 30 minutes of the daily break |
-| STREAK | part of a run of consecutive losses or a drawdown episode |
-| DATA_SUSPECT | a tick gap above threshold during the trade |
-| HIDDEN_LOSS (winners) | with real bid/ask the stop is hit before the target |
-
-Grid or martingale EAs: trades are grouped into baskets and judged per basket as well as per order.
 
 ## Increment sequence
 
 1. Tick store (no MT4 needed).
 2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits.
-3. Full-year run and loss engine.
-4. App v1: list, filters, saved views, money ranking, calendar, tick replay.
-5. MT4 jump.
-6. What-if lab, version compare, review notes, team report, news calendar.
+3. Full-year run, reconciliation, measurements, the detector contract and the first ten detectors.
+4. The rest of catalogue v1, each with tests.
+5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence.
+6. MT4 jump.
+7. Ship: private GitHub repository, one-step setup on the expert's PC, `CLAUDE.md`, the add-a-defect recipe proven by adding one through Claude Code.
+8. What-if lab, version compare, review notes, team report, backtest-versus-demo comparison.

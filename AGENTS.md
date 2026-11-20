@@ -1,6 +1,6 @@
 # loss-lens
 
-Finds, names and ranks the losses an MT4 expert advisor makes over a year of real ticks, and jumps to each one on the MT4 chart.
+Runs an MT4 expert advisor over a year of real ticks, finds every defect in how it traded, shows the proof for each, ranks them by cost, and jumps to each one on the MT4 chart.
 
 ## Teams (.teams/)
 This project is run by a Lead (plans, reviews) and a Builder (implements).
