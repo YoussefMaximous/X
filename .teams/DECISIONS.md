@@ -1,0 +1,47 @@
+# Decisions
+
+Append-only, newest at the bottom. Only the Lead writes here. Never edit an old entry; supersede it with a new one.
+
+Tags: team ids, `ALL` (every team must read it) or `SETUP`.
+
+## D-1 · 2026-11-20 · SETUP
+Decision: Team setup: small, overlay mode; active `lead`, `builder`. No proposer competition was run.
+Why: The user fixed the roster up front (a Lead that thinks and reviews, one cheaper builder that implements, kickoffs pasted by the user). Existing setups win.
+Alternatives rejected: extra teams (design, domain science) now: one implementing chat cannot absorb their output yet; revisit at inc-4 (app design).
+Supersedes: none
+Decided by: user
+
+## D-2 · 2026-11-20 · ALL
+Decision: The app is the product. The builder's earlier draft prompt (CLI first, dashboard later, 12-question interview) is superseded by `.teams/PROJECT.md` and `.teams/ARCHITECTURE.md`.
+Why: The user asked for a smooth loss-inspection tool and told the Lead to ignore the draft.
+Alternatives rejected: CLI-only tool with reports: does not meet the north star.
+Supersedes: none
+Decided by: user
+
+## D-3 · 2026-11-20 · ALL
+Decision: The EA always runs inside MetaTrader. loss-lens never re-implements strategy logic. The runner is a seam; first runner is native MT4 Strategy Tester.
+Why: EA-agnostic, works with compiled EAs, and matches what the team will trade.
+Alternatives rejected: own tick-replay engine executing the strategy: cannot run `.ex4`, and diverges from MT4 behaviour. MT5 runner: user specified MT4; kept possible for later.
+Supersedes: none
+Decided by: Lead
+
+## D-4 · 2026-11-20 · ALL
+Decision: Ticks are stored as one Parquet file per UTC day with the schema in ARCHITECTURE.md; times are UTC epoch milliseconds everywhere; broker time is applied only at MT4 export. `data/` is never committed.
+Why: Per-day files make sync resumable and updates cheap; one time convention removes a whole class of bugs.
+Alternatives rejected: one big CSV or one database file: slow to update, easy to corrupt, hard to verify.
+Supersedes: none
+Decided by: Lead
+
+## D-5 · 2026-11-20 · ALL
+Decision: Stack: Python 3.11+ (pyarrow, DuckDB) for data, runner and loss engine; Node only to run `dukascopy-node` pinned at 1.51.1; app as FastAPI + React/TypeScript (provisional until inc-4). The builder may not add dependencies beyond those a brief names without asking.
+Why: Common, well-documented tools a cheaper model handles reliably; both runtimes are already installed (Python 3.13, Node 24, measured).
+Alternatives rejected: C#/.NET desktop app: slower to build with the available builder. All-TypeScript: weaker for the numeric loss engine.
+Supersedes: none
+Decided by: Lead
+
+## D-6 · 2026-11-20 · ALL
+Decision: The test EA is a purpose-built reference EA in MQL4 with source (built in inc-2): gold scalper, many trades a day, several rule gates, decision log with rule ids. The team's real EA plugs in later through the same runner.
+Why: The user left the choice to the Lead. A reference EA we control exercises every loss type and the decision-log path, and needs no download from unknown hosts.
+Alternatives rejected: MT4's bundled sample EAs: too few rules and trades. A downloaded third-party EA: unknown quality and licence.
+Supersedes: none
+Decided by: Lead
