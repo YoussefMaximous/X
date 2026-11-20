@@ -85,7 +85,8 @@ def _download_script(root: Path) -> Path:
     package_file = package_dir / "package.json"
     if not package_file.is_file():
         raise SetupError(
-            "dukascopy-node is not installed; run 'npm install' in the repository folder"
+            "dukascopy-node is not installed; run "
+            "'npm ci --ignore-scripts' in the repository folder"
         )
     try:
         package = cast(dict[str, Any], json.loads(package_file.read_text(encoding="utf-8")))
@@ -116,7 +117,9 @@ def download_day(symbol: str, day: date, temp_root: Path | str | None = None) ->
     instrument = instrument_for(symbol)
     node = shutil.which("node")
     if not node:
-        raise SetupError("node was not found on PATH; install Node.js and run npm install")
+        raise SetupError(
+            "node was not found on PATH; install Node.js and run npm ci --ignore-scripts"
+        )
 
     root = repository_root()
     script = _download_script(root)
@@ -139,7 +142,6 @@ def download_day(symbol: str, day: date, temp_root: Path | str | None = None) ->
         cmd = [
             node,
             str(script),
-            "dukascopy-node",
             "-i",
             instrument,
             "-from",

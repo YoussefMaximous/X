@@ -10,3 +10,9 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+*.ex4
+*.ex5
+*.mq4
+*.mq5
+*.mqh
+!mql4/**

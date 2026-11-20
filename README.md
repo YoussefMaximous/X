@@ -6,6 +6,8 @@ increment is the tick store only**: it downloads XAUUSD ticks from Dukascopy,
 keeps one Parquet file per UTC day, imports other tick CSVs, checks the data and
 answers range queries.
 
+Read [What this software does, and what it never does](SAFETY.md).
+
 ## What you need
 
 - Windows.
@@ -19,11 +21,12 @@ Run these once in the repository folder:
 
 ```text
 python -m pip install -e .
-npm install
+npm ci --ignore-scripts
 ```
 
-`npm install` installs `dukascopy-node` at exactly 1.51.1. The commands below can
-be run from any folder; they always use the same store.
+`npm ci --ignore-scripts` installs exactly the versions in `package-lock.json`,
+checks their checksums, and runs no install script. The commands below can be
+run from any folder; they always use the same store.
 
 ## Commands
 

@@ -93,6 +93,7 @@ def test_download_command_uses_node_and_the_package_bin(tmp_path, monkeypatch):
     assert result is None
     assert captured["cmd"][0] == "C:/fake/node.exe"
     assert captured["cmd"][1] == str(script.resolve())
+    assert captured["cmd"][2] == "-i"
     assert captured["kwargs"]["stdin"] == subprocess.DEVNULL
 
 
