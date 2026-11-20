@@ -1,6 +1,6 @@
 # Increment inc-2, part A: Safety guards
 
-Planned: 2026-11-20 · Status: part A sent back once (2026-11-20), current brief is "Send-back 1 of part A" at the end · Phase: prototype
+Planned: 2026-11-20 · Status: part A sent back twice (2026-11-20), current brief is "Send-back 2 of part A" at the end · Phase: prototype
 
 Part B (the MT4 run spike) will be added to this file after part A is accepted. Do not start it.
 
@@ -234,3 +234,61 @@ Close the ways around the guards. Change only `tests/_guard_scan.py`, `tests/tes
 6. `git diff --stat` between `fad222c` and your new commit shows changes only in the three test files named above, your report and your `HANDOFF.md`.
 
 **Return:** `.teams/teams/builder/work/report-inc-2a2.md` in the same form, with the failure message for every change in checks 2 and 3, and an updated `HANDOFF.md`.
+
+## Judgment on send-back 1 of part A (filled in by the Lead, 2026-11-20)
+
+**builder: all nine items done correctly, all six checks pass. Not accepted yet for a reason that is not the builder's: a second round of probes by the Lead found two more ways around the guards, both gaps in the Lead's briefs. Sent back with two items.**
+
+What the Lead ran (measured, code at `a1bfc46`, in a copy of the repository, each change alone and undone):
+- Check 1: 66 tests pass; `ruff check`, `ruff format --check` and `mypy` exit 0; no suppression.
+- Checks 2, 3 and 4: P1 to P12 and P14, the six extra changes, and the first brief's twelve (a to l) each give `pytest` exit 1 with a message naming the file and the rule. After all were undone: exit 0.
+- Check 5 and 6: the repository as it is passes; only `tests/_guard_scan.py`, `tests/test_no_network.py`, the report and the builder's `HANDOFF.md` changed.
+- New probes that were caught: `from os import system as s`; an import inside a function; `importlib`, `asyncio`, `ctypes`, `webbrowser`; `from subprocess import run` outside the allowed file; `import os, socket` on one line; `MY.EX4` in capitals; a tab-indented `#import` in `mql4/sub/`; an investor password and an order call in the README.
+
+New probes that were **not** caught (`pytest` still exited 0):
+
+| # | Change | Why it gets through |
+|---|---|---|
+| N1 | `scripts/upload.py` containing `import requests` | Python files are only checked under `src/` |
+| N2 | `setup.py` in the root containing `import urllib.request` | same |
+| N13 | `conftest.py` in the root containing `import socket` | same |
+| N10 | `src/losslens/x.pyw` containing `import socket` | only `*.py` is read |
+| N3 | `tools/send.ps1` that posts a file to a web address | no rule about other kinds of script |
+| N11 | a second `subprocess.run([...])` added to `dukascopy.py` | the file is allowed to use `subprocess` without limit |
+| N12 | `subprocess.Popen([...])` added to `dukascopy.py` | same |
+
+What a text scan cannot catch, stated once: code written to hide on purpose (for example reaching `os` through `sys.modules`). The guards are for mistakes and careless changes; the Lead's review of every change covers the rest.
+
+## Send-back 2 of part A: brief for the builder
+
+Two new rules. Change only `tests/_guard_scan.py` and `tests/test_no_network.py`. No new dependencies. Do not touch `src/` or the stored data. Each rule gets a must-flag and a must-not-flag sample test.
+
+**1. New rule 2k: code lives only where the guards look.**
+- Walk the repository with the existing walker, with `.teams` included (as rule 2i does).
+- A file is a "code file" if its suffix, lower-cased, is one of:
+
+```text
+.py .pyw .pyi .pyc .pyd .ipynb
+.js .mjs .cjs .ts .tsx .jsx
+.ps1 .psm1 .bat .cmd .sh .vbs .wsf
+.exe .dll .msi .scr .com .jar .lnk
+```
+
+- The only code files allowed are `.py` files whose path starts with `src/` or `tests/`. Every other code file fails, with this message after the file name: "rule 2k: code files are allowed only as .py under src/ or tests/. Ask the Lead before adding code anywhere else."
+- The two lists (suffixes, allowed places) are constants in `tests/test_no_network.py` under the SAFETY GUARD comment. MQL files stay under rule 2i.
+
+**2. New rule 2l: the one file that may start a program starts exactly one.**
+- Change `SUBPROCESS_ALLOWED` from a set into a mapping from file to the number of program starts allowed: `{"src/losslens/ticks/dukascopy.py": 1}`. Rule 2a keeps using its keys.
+- In each file of that mapping, fail on:
+  - `import subprocess as <anything>` and any `from subprocess import ...`;
+  - any attribute of the name `subprocess` other than `run`, `DEVNULL` and `TimeoutExpired` (so `subprocess.Popen`, `subprocess.call`, `subprocess.check_output` fail);
+  - a number of `subprocess.run` accesses different from the number in the mapping. The message says how many were found and how many are allowed.
+
+**Done when** (the Lead runs these):
+1. `python -m pytest -q`, `python -m ruff check .`, `python -m ruff format --check .` and `python -m mypy` all exit 0.
+2. Each change N1, N2, N3, N10, N11, N12 and N13 in the table above, made alone in a copy of the repository and undone, makes `python -m pytest -q` exit 1 with a message that names the file and the rule.
+3. Also failing, each alone: `import subprocess as sp` in `dukascopy.py`; `from subprocess import run` in `dukascopy.py`; a file `notes/run.bat`; a file `.teams/teams/builder/work/helper.py`.
+4. Every change from the two earlier briefs still fails; the repository as it is still passes.
+5. Only `tests/_guard_scan.py`, `tests/test_no_network.py`, your report and your `HANDOFF.md` changed.
+
+**Return:** `.teams/teams/builder/work/report-inc-2a3.md` in the same form, and an updated `HANDOFF.md`.
