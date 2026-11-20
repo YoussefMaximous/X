@@ -57,6 +57,12 @@ def download_day(symbol: str, day: date) -> Path | None:
     if not npx:
         raise DownloadError("npx was not found on PATH; install Node.js and run npm install")
 
+    local_package = Path.cwd() / "node_modules" / "dukascopy-node" / "package.json"
+    if not local_package.exists():
+        raise DownloadError(
+            "dukascopy-node is not installed; run 'npm install' from the repository root"
+        )
+
     browser = find_browser()
     if not browser:
         raise DownloadError(
