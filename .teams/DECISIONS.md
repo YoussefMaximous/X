@@ -94,3 +94,10 @@ Why: The user chose IC Markets. Observed 2026-11-20: the page's "Download MetaTr
 Alternatives rejected: builder installs MT4 during inc-1: contradicts its download rule, and it would have to guess the installer. MetaQuotes' generic installer: known to install MT5.
 Supersedes: none
 Decided by: user (broker), Lead (who installs)
+
+## D-14 · 2026-11-20 · ALL
+Decision: The software never trades: no order is placed, changed or closed on any account, demo or real, in this or any later version. Enforced by the seven layers in ARCHITECTURE.md ("Safety"): tester-only runner, no broker connection or passwords in our code, the MT4 bridge is an indicator, the reference EA refuses to run outside the tester, a dedicated MT4 copy with live trading off, a guard test that fails the build, and a written rule for every AI that opens the repository.
+Why: The user forbids any live or real-money action, including through future updates. The expert will change the repository with Claude Code, so the rule must be enforced by checks, not by intention.
+Alternatives rejected: relying on the tester being a simulation alone: the bridge and future changes are outside the tester. Making the bridge an EA: an EA is able to trade; an indicator is not.
+Supersedes: the "small EA" wording for the MT4 bridge in earlier ARCHITECTURE.md
+Decided by: user (the rule), Lead (how it is enforced)

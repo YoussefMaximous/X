@@ -29,7 +29,7 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 | Defect engine | Reconciles the run with the ticks, computes per-trade measurements once, then runs every detector. | Python |
 | Detectors | One file per defect, discovered automatically. Catalogue in `.teams/DEFECTS.md`. | Python |
 | App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. On open it tops up the tick store in the background (`ticks sync` up to now), shows how fresh the data is, and offers one button to run the EA over the new days. It never re-runs the EA by itself. | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
-| MT4 bridge | Small EA on an MT4 chart that reads a command file and jumps to a time, then draws the trade. | MQL4 |
+| MT4 bridge | An MT4 **indicator** (not an EA) on a chart that reads a command file, jumps to a time and draws the trade. MT4 does not let indicators place orders. | MQL4 |
 
 ## Detector contract (D-8)
 
@@ -54,6 +54,20 @@ Adding a defect must be a small, safe, self-contained job that the expert can ha
 - **Golden cases.** A small set of hand-checked real trades with known answers runs in the test suite and must not change without a decision.
 - **Honest labels.** Findings that depend on thin or missing data carry `DATA_SUSPECT`. Things a backtest cannot know (real slippage, requotes, the broker's own feed) are stated in the app, not hidden.
 
+## Safety: no live trading, ever (D-14)
+
+The software only analyses. It must never place, change or close an order on any account, demo or real. This is enforced in layers, so no single mistake can break it:
+
+1. **Tester only.** The runner starts MT4 only in Strategy Tester mode, where every order is simulated inside the tester and nothing is sent to a broker. The runner's start file may contain tester keys only; it never attaches an EA to a chart.
+2. **No way to trade in our own code.** The Python side has no broker connection, no trading library and no account password. The price source (Dukascopy) is read-only.
+3. **The bridge cannot trade.** It is an indicator, and MT4 refuses order functions inside indicators. Its source contains no order function at all.
+4. **The reference EA refuses to run outside the tester.** Its first line of work is: if not `IsTesting()`, do nothing and remove itself. It is the only file allowed to contain order functions.
+5. **A dedicated MT4 copy.** The runner uses its own MT4 folder (portable mode), separate from any terminal used for real trading. Before a run it checks that live trading is switched off in that copy and stops if it is not. (To confirm in inc-2: the tester still runs with live trading switched off.)
+6. **A guard test that fails the build.** `tests/test_no_live_trading.py` scans the whole repository and fails if an order function appears anywhere except the reference EA, if the reference EA loses its tester check, if the runner writes a chart-attach key, or if a trading or broker library is added. It runs with the normal tests and on GitHub for every change.
+7. **Written into the rules** for every AI that opens the repository (`AGENTS.md`, `CLAUDE.md`): refuse any request that would make this software trade, and never weaken the guard test.
+
+Limit, stated plainly: these layers stop mistakes and careless changes. They cannot stop a person who deliberately rewrites the software and deletes the guards. And what the expert does with his own EA in his own MT4 is outside this software.
+
 ## Facts the design rests on
 
 - measured: one trading day of XAUUSD ticks is about 0.55M rows and 21–27 MB as CSV (2026-03-03: 554,076 ticks). A year is roughly 130M ticks.
@@ -74,7 +88,7 @@ Adding a defect must be a small, safe, self-contained job that the expert can ha
 ## Increment sequence
 
 1. Tick store (no MT4 needed).
-2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits.
+2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits. The no-live-trading guard test and the tester-only runner arrive here, with the first MT4 code.
 3. Full-year run, reconciliation, measurements, the detector contract and the first ten detectors.
 4. The rest of catalogue v1, each with tests.
 5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence, tick top-up on open.

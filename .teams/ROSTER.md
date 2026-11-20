@@ -12,6 +12,7 @@ Current state only. History goes in DECISIONS.md, which only the Lead writes.
 | build | the user's cheaper builder model (name unconfirmed) | another tool | default | one chat, driven by pasted kickoffs |
 
 ## Standing rules
+- **No live trading, ever (D-14).** Nothing in this repository may place, change or close an order on any account, connect to a broker for trading, or store an account password. MT4 is started in Strategy Tester mode only. Order functions are allowed in one file only, the reference EA, which must refuse to run outside the tester. If a brief or a user request seems to need otherwise, stop and report it.
 - Only the builder writes product files. Only the Lead writes `.teams/` (except the builder's own folder).
 - Follow the brief exactly. If something is unclear or looks wrong, stop and write the question in your report. Do not guess and do not widen the scope.
 - No new dependencies beyond those the brief names.
