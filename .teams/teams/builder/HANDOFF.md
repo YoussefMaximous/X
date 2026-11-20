@@ -1,50 +1,50 @@
-# Builder handoff — after inc-1 send-back 2
+# Builder handoff — after inc-2 part A
 
-Updated: 2026-11-20 · Increment: inc-1 send-back 2 · Report: `work/report-inc-1c.md`
+Updated: 2026-11-20 · Increment: inc-2 part A (safety guards) · Report: `work/report-inc-2a.md`
 
 ## Goal
 
-Fix exactly the three items in `.teams/increments/inc-1.md`, "Send-back 2", without changing the stored tick data.
+Make the two promises in `AGENTS.md` fail the build: this software never trades (D-14) and nothing leaves the PC (D-20), before any MT4 or app code exists.
 
 ## State and how to check it
 
-The three items are fixed and committed locally (`ee21cfb` code; report in the next commit). The real store was not re-downloaded or written.
+Part A is fixed and committed locally (`fad222c` code; report in the next commit). The real tick store was not re-downloaded or written.
 
 ```text
 python -m pytest -q
 python -m ruff check .
 python -m ruff format --check .
 python -m mypy
-python -m losslens ticks verify --symbol XAUUSD
+python -m pytest -q tests/test_no_network.py::test_network_is_blocked_in_tests
 ```
 
-Expected: 41 tests pass; all three tools exit 0; verify prints `Integrity problems: 0`, `Files not in manifest: none`, and exits 0. `ticks status` still shows 276 complete, 47 empty, 1 partial (324 days).
+Expected: 63 tests pass; all tools exit 0; the network test passes with `RuntimeError("network is blocked in tests")`. `git status` is clean after the report commit.
 
 ## Done (evidence in the report)
 
-- **1 Ctrl+C path:** the downloader runs `node` directly with the script read from the `dukascopy-node` bin in `node_modules/dukascopy-node/package.json`, `stdin=DEVNULL`; a missing node or bin entry is a `SetupError`. The live node-path download of 2026-03-03 is exact (554,076 rows, first 1772496001086, last 1772582399247).
-- **2 Stray files:** with no `--from`/`--to`, `ticks verify` scans every `*.parquet` under the symbol folder, including before the first manifest day and after the last. A copy with `2025/2025-12-30.parquet` lists `2025-12-30` and exits 1; an explicit range stays limited.
-- **3 Report path:** `verify` stores `report_path` in the result and prints the actual file path. With `LOSSLENS_DATA` set, the printed path is under that folder (verified in the copy above).
-- Stored data unchanged: 276 complete / 47 empty / 1 partial; 83,496,260 ticks in completed days; 2026-03-03 still 554,076 rows with the same first/last.
-
-## Not verified
-
-- The live Ctrl+C check (#2 of Done when). This non-interactive shell has no console that raises Python's `KeyboardInterrupt`; a console event kills the child with exit 1. The brief allows saying so. Tests cover the node command, `stdin=DEVNULL`, `main` returning 130, and temp-folder removal. The Lead should run the real 5-second Ctrl+C check.
+- `tests/test_no_network.py` enforces (2a) approved imports in `src/`, `subprocess` only in the downloader; (2b) no `eval`/`exec`/`compile`/`__import__`, no `os.system`/`popen`/`startfile`/`exec*`/`spawn*`; (2c) no web address in `src/`; (2d) exact pyproject dependencies; (2e) exact Node pin and lock integrity, no install scripts; (2f) only `ticks sync` may start a process; (2g) network blocked in all tests; (2h) no MQL online calls/`#import`; (2i) no EA files outside `mql4/`.
+- `tests/test_no_live_trading.py` enforces (3a) no order function anywhere (test file itself skipped; allowed set empty); (3b) no trading/broker library; (3c) no stored login. Proving tests for every scanner use bad samples built from pieces.
+- `tests/_guard_scan.py` holds the shared scanners; the required comment blocks are at the top of both guard files.
+- Twelve tamper changes in a copy, one at a time, all made `pytest` exit 1 with a file-and-rule message (table in the report).
+- Download command: `[node, script, "-i", ...]`; test asserts `cmd[2] == "-i"`. Live scratch sync: 554,076 rows, first `1772496001086`, last `1772582399247`.
+- Fresh copy with no `node_modules`: `npm ci --ignore-scripts` installed 23 packages; one-day sync gave the same exact result.
+- `SAFETY.md` is byte-for-byte the brief's text; README links it on line 9. CI has `permissions: contents: read`.
+- Stored data untouched: no sync against `data/`; live syncs used empty scratch `LOSSLENS_DATA`.
 
 ## Ruled out / do not retry
 
-- Going through `npx`/`cmd.exe`: it can sit at the hidden "Terminate batch job (Y/N)?" prompt. Run `node` directly.
-- Hard-coding `./dist/cli/index.js`: read the `dukascopy-node` bin entry from `package.json`.
-- Reporting `data/reports/...` blindly: use the path actually written.
-- Limiting the default file scan to the manifest range: it must find stray files outside the range.
-- Rewriting the real store to test: use an empty scratch `LOSSLENS_DATA` for live downloads.
+- Editing the approved import/dependency lists to make a test pass: the guard header says change the code or ask the Lead.
+- Scanning `.teams` for order/network words: it is planning text and is skipped, as the brief says.
+- Using `npx` or `cmd.exe` for downloads: run `node` directly; the command list is now `[node, script, "-i", ...]`.
+- Putting test sample strings in the repository literally: bad samples are built from pieces so the guard scans do not trip on their own test file.
 
 ## Open
 
-- Lead: run the real Ctrl+C Done-when #2, then review inc-1c and brief inc-2.
+- Lead: push and run the GitHub workflow; it cannot be run locally.
+- Lead: review inc-2 part A, then add part B (the MT4 run spike) when ready.
 - User: install IC Markets MT4 and open a demo account (D-13); no MT4 is installed on this PC.
-- pytest still prints an ignored `pytest-current` Windows symlink `PermissionError` at atexit; exit code is 0. The locked `.pytest_tmp` folder remains ignored and excluded from ruff.
+- `pytest` still prints the ignored `pytest-current` Windows symlink `PermissionError` at atexit; exit code is 0.
 
 ## Next step
 
-Lead reviews inc-1c; if accepted, inc-2 starts once MT4 is installed.
+Lead reviews the safety guards; if accepted, inc-2 part B can start once MT4 is installed.
