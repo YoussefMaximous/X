@@ -483,3 +483,32 @@ The Lead runs these on this PC, from the repository root.
 | Q12 | Anything you saw that this brief did not expect. |
 
 **Return:** `.teams/teams/builder/work/report-inc-2b.md`: a summary of 12 lines or fewer, then Q1 to Q12 in order, each with the command and its real output and one of the words measured / checked / inferred / not verified; then the "Done when" checks; then "did not work" items. And an updated `HANDOFF.md`.
+
+## Judgment on part B (filled in by the Lead, 2026-11-21)
+
+**builder: the code follows the brief, and stopping at the window was right. Not accepted: the measurement this part exists for did not happen, for a reason in the Lead's brief. Sent back once, four items, then one retry of the one-day run.**
+
+What the Lead ran and read (measured, code at `d8f0265`):
+- 81 tests pass; `ruff check` and `mypy` exit 0.
+- The copy's start file is the flat list the brief required. It has no `[Common]` and no `[Tester]`. MT4 reads tester settings only under those two headings, so this file did not start a test. The "Open an Account" window is what a first start does when no test was requested. The Lead forbade those two headings; that was the mistake.
+- The copy is not running now. Its journal (21:42) records only a local migration and a local MQL4-folder update that finished in under a second. It does not record a test, a login, or the "MQL5.community" line (that line is not in the log that remains). `terminal.ini` records a dialog position and no account.
+- `history/default/XAUUSD1.hst` is 82,948 bytes, which is the 148-byte header plus 1,380 bars of 60 bytes. The probe compiled: `LossLensProbe.ex4` is in the copy. MT4's own sample EAs appeared in the copy's `MQL4\Experts` from that local update; they were not copied from the user's folder.
+- Nothing under `.teams/` outside the builder's folder was changed. No program file is tracked.
+
+## Send-back 1 of part B: brief for the builder
+
+The hard rules of part B still hold. Do not type in the window, do not click it, and do not press keys at it. Do not use `--replace`. Do not copy any new file from the user's MT4.
+
+**1. The start file needs the two headings MT4 reads.** `check_start_file` must allow exactly two extra lines, `[Common]` and `[Tester]`, each once. `[Common]` comes first. Every fixed line must sit after `[Common]` and before `[Tester]`. Every `Test*` line must sit after `[Tester]`. Any other line in brackets is still refused. `build_start_file` writes that order. The test that builds a start file and checks it must still pass, and a start file with the headings missing, or with a fixed line under `[Tester]`, must be refused.
+
+**2. Start the terminal with the config switch.** `mt4 run` calls `terminal.exe` with `/portable` and `/config:` followed by the absolute path of `losslens_start.ini`. The bare path form may stay allowed; the run command itself uses `/config:`.
+
+**3. The tick comparison must not hide a match.** `RESULT: identical` means every compared tick agrees in time and bid. Ticks skipped at the start or the end are still printed, and they do not by themselves make the result `different`. `different` means a compared tick disagrees, or the probe's ticks do not line up with the store in order.
+
+**4. The inspector prints the whole header.** `mt4 inspect-fxt` prints every 4-byte slot from the start of the file to the end of the header, with its byte position, not only the first 64 bytes.
+
+**5. One retry, then stop.** On the existing copy: `mt4 compile`, then `mt4 export --symbol XAUUSD --from 2026-03-03 --to 2026-03-03 --no-fxt`, then `mt4 run` for that day with `--spread 30 --timeout 180`. If a tester report or a non-empty `.fxt` appears, run `mt4 inspect-fxt` on it and answer Q6 and Q7 from that file. If the "Open an Account" window appears again, let the timeout end the run and stop. Do not try a week or a month.
+
+**Done when:** the four tools exit 0; the new start file is refused without its headings and accepted with them; the one retry is in the report with the command and the output.
+
+**Return:** `.teams/teams/builder/work/report-inc-2b2.md` and an updated `HANDOFF.md`.
