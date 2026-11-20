@@ -53,7 +53,7 @@ D-1 to D-26 in `.teams/DECISIONS.md` (D-23: a defect is only a reason a loss hap
 - User: when the repository goes public and under which licence (asked 2026-11-20). Before it goes public, the `.teams/` files need a pass: they hold this PC's folder paths and the user's GitHub name.
 - MT4: nothing more from the user; it connected to the demo at 18:48 (see "State").
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
-- Builder: inc-2 part B was reviewed 2026-11-21. The code follows the brief and the "Open an Account" window was correctly left alone. The start file had no `[Common]` or `[Tester]` heading, which MT4 requires and the Lead's brief had forbidden, so no test ran. "Send-back 1 of part B" is at the end of `.teams/increments/inc-2.md`. The user will say "Report inc-2b2 is ready".
+- Builder: idle. Send-back 1 of part B is done (measured, 85 tests, headings and `/config:` in place) and the one-day retry still timed out. The Lead closed only the copy's "Open an Account" Cancel button: a login box is behind it, and no test file is written until that box is filled. The user has been asked to log the copy in himself. Do not brief the builder to type a login or a password. When the user says the copy is logged in, retry the one-day run and fix the empty-probe "identical" hole first.
 
 ## Open
 - The app is now much larger (an MT4-style chart with tools and indicators). Before the app increments: ask the user for a stronger builder model, activate the design team, and make the MT4 checklist from the real MT4 on this PC.

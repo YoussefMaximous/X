@@ -512,3 +512,20 @@ The hard rules of part B still hold. Do not type in the window, do not click it,
 **Done when:** the four tools exit 0; the new start file is refused without its headings and accepted with them; the one retry is in the report with the command and the output.
 
 **Return:** `.teams/teams/builder/work/report-inc-2b2.md` and an updated `HANDOFF.md`.
+
+## Judgment on send-back 1 of part B (filled in by the Lead, 2026-11-21)
+
+**builder: the four items are done, and the retry was run as ordered. Not accepted as a finished measurement, and not sent back. The copy cannot run a test until it has an account, and nobody is to type one.**
+
+What the Lead checked (measured, code at `5a97324`):
+- 85 tests pass.
+- The start file on disk has `[Common]`, then the ten fixed lines, then `[Tester]`, then the test lines. The run command uses `/config:` and the absolute path.
+- The retry wrote the history file (1,380 bars) and recompiled the probe (0 errors), then timed out at 180 seconds with no report and no `.fxt`. The builder did not touch the window.
+- The Lead started the same copy, read the window titles, and closed only the "Open an Account" window by its Cancel button. Nothing was typed. Behind it, MT4 shows a login box ("Authorization allows to get access to the trade account", with a login field). The main window is open, including the tester's own controls, and no test file is written. The process was then closed. No `terminal.exe` from the copy was left running.
+
+So the headings were necessary and are now in place, and they are not enough. MT4 will not run the Strategy Tester in this copy until that login box is filled. The software must not fill it, and the password must not be written into any file in the repository.
+
+One hole to fix before a comparison result is trusted: an empty probe file currently counts as identical. Harmless today, because no probe file exists.
+
+## Waiting on the user
+He logs the copy in himself, once, if he wants the tick comparison to be possible. The Lead does not type the login and does not ask for the password.
