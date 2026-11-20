@@ -229,3 +229,17 @@ Fix exactly these three items. No new dependencies. Do not touch the stored data
 5. `ticks verify` on the real store still exits 0.
 
 **Return:** `.teams/teams/builder/work/report-inc-1c.md` in the same form, and an updated `HANDOFF.md`. You do not need to produce a real Ctrl+C yourself; say so under "not verified" if you did not.
+
+## Judgment on send-back 2 (filled in by the Lead, 2026-11-20)
+
+**builder: accepted. inc-1 (tick store) is accepted and pushed.**
+
+What the Lead ran (measured, code at `ee21cfb`):
+- Check 1: 41 tests pass; `ruff check`, `ruff format --check` and `mypy` exit 0; no `type: ignore`, no `noqa`, no skipped test.
+- Check 2: a real Ctrl+C sent 5 s into `ticks sync --from 2026-03-02 --to 2026-03-06` on an empty scratch store: exit code 130 after 0.1 s, the line "interrupted; finished days are safe, run the command again", no `losslens-duka-*` folder left, no new `node.exe` or `cmd.exe` left, nothing half-written in the store. (The builder could not produce a real Ctrl+C and said so.)
+- Check 3: forced sync of 2026-03-03 into a scratch store: 554076 rows, first 1772496001086, last 1772582399247, and the file is identical to the one in the real store in every column.
+- Check 4: in a full copy of the store with a stray `2025/2025-12-30.parquet`, verify lists 2025-12-30 under "Files not in manifest" and exits 1; the printed report path is inside the copy and the real report was not touched. With `--from 2026-03-01 --to 2026-03-31` the stray file is not listed and the exit code is 0. A stray file after the last day (2026-12-25), run from another folder, is listed too.
+- Check 5: real store verify exits 0: 83,496,260 ticks in completed days, 0 integrity problems, no file outside the manifest. No day file changed since the first review; status still 276 complete, 47 empty, 1 partial.
+- The builder changed nothing under `.teams/` outside its own folder. No secret, data file or EA file is tracked.
+
+One tidy-up carried into the next brief (not a fault in behaviour): the command line still contains the word `dukascopy-node` after the script path, left over from the `npx` form. Measured: a download with and without that word gives a byte-identical file (same SHA-256), exit 0 both times. It is removed, with a test, as item 1 of inc-2.
