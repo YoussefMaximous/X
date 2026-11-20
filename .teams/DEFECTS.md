@@ -1,10 +1,10 @@
 # Defect catalogue, version 1 (Lead-owned)
 
-Updated: 2026-11-20. This is the list the first release must detect. Each row becomes one detector file (contract in `ARCHITECTURE.md`). Thresholds shown are defaults; every one is a parameter the expert can change.
+Updated: 2026-11-20. Draft list of loss reasons. Each row can become one detector file (contract in `ARCHITECTURE.md`). Thresholds shown are defaults; every one is a parameter the expert can change. The list is not fixed (D-24).
 
-A defect is anything in a run that an EA maker would want to look at: a losing trade with a nameable cause, a winning trade that was fragile or lucky, a risk or sizing problem, a pattern across many trades, a broken rule, or an error the EA raised. A trade can carry several defects.
+A defect is a reason a losing trade lost (D-23). One loss can have several reasons, or none (D-24). The rows below are a draft list, not a fixed set.
 
-**Loss types (D-22).** Every losing trade also gets exactly one main cause, so the Losses panel adds up to the real total. A detector can be marked as a possible cause of a loss; when several apply, the main one is picked by the order written in `defects.toml`. A loss that nothing explains is counted under "Unexplained". The order of causes is set when the first detectors are built (inc-3) and reviewed by the expert with the catalogue (D-11).
+**Loss types (D-24).** Classifying why a trade lost is the core of the product, and it is hard. A loss can match several reasons, or none. How the screen shows that is not settled; it is the subject of the Fable checkpoint `2026-11-20-loss-types-screen.md`. The expert reviews this draft list after the software works (D-11).
 
 **Level:** trade, basket (a group of orders managed together, as in a grid), run (a pattern across the whole test).
 **Needs:** T = trades and ticks (always available) · J = MT4 tester journal · P = EA profile (a small file where the expert states what the EA is supposed to do: hours, max lot, max positions, risk per trade) · D = decision log (EAs with source) · C = news calendar.
@@ -33,7 +33,6 @@ R = initial risk (entry to stop). MFE / MAE = best / worst price reached during 
 | STOP_TOO_TIGHT | trade | Stopped out, then price reached the original target within N minutes without going a further 1R against | T |
 | STOP_TOO_WIDE | trade | Loss larger than N times the run's average win | T |
 | MISSED_TARGET_BY_A_HAIR | trade | MFE reached 90% or more of the target distance, then the trade lost or closed for much less | T |
-| EXITED_TOO_EARLY | trade | Winner closed, then price ran a further X·R in its favour within N minutes | T |
 | HELD_TOO_LONG | trade | Loss held far longer than the run's typical winner | T |
 | BREAKEVEN_KILLED_WINNER | trade | Stop moved to break-even, hit, then price reached the original target | T, J |
 | TRAIL_CHOKED | trade | Trailing stop closed the trade within X of a pullback low/high before the move continued | T, J |
@@ -50,10 +49,7 @@ R = initial risk (entry to stop). MFE / MAE = best / worst price reached during 
 | GAP_THROUGH_STOP | trade | Filled worse than the stop by more than Y (daily break, weekend, news gap) | T |
 | COSTS_ONLY_LOSS | trade | Gross result not negative, net result negative after commission and swap | T |
 | SWAP_EATEN | trade | Swap charges were more than X of the trade's gross result | T |
-| TARGET_TOO_SMALL_FOR_SPREAD | trade | Target distance below N times the spread at entry | T |
-| FRAGILE_WINNER | trade | Winner whose profit is smaller than one typical spread or the modelled slippage | T |
-| LATENCY_SENSITIVE | trade | Price moved more than X within 200 ms after entry or exit: a real fill would differ | T |
-| BACKTEST_FILL_IMPOSSIBLE | trade | Entry or exit price never appeared in the tick data at that time | T |
+| TARGET_TOO_SMALL_FOR_SPREAD | trade | Target distance below N times the spread at entry, and the trade lost | T |
 
 ## D. Risk and sizing
 
@@ -81,24 +77,10 @@ R = initial risk (entry to stop). MFE / MAE = best / worst price reached during 
 | SESSION_LEAK | run | A session (Asia, London, New York, overlap) that loses consistently | T |
 | VOLATILITY_REGIME_LEAK | run | Losses concentrated in very high or very low volatility | T |
 | DIRECTION_BIAS | run | Longs or shorts lose consistently while the other side makes the profit | T |
-| PROFIT_CONCENTRATION | run | A handful of trades or days produce most of the profit | T |
-| EA_WENT_SILENT | run | No trades for an unusually long stretch while the market was open | T |
 
-## F. Rules and errors
+## F. A rule of the EA caused the loss
 
 | ID | Level | What it catches | Needs |
 |---|---|---|---|
-| OUTSIDE_TRADING_HOURS | trade | Trade opened outside the declared hours | T, P |
-| MAX_POSITIONS_EXCEEDED | run | More positions open than declared | T, P |
-| ORDER_ERROR | run | Every order error in the journal (invalid stops, not enough money, trade context busy, and so on), with its time | J |
-| ORDER_MODIFY_SPAM | trade | Stop or target modified an excessive number of times | J |
-| RULE_MISFIRE | trade | The decision log shows a rule fired when its own stated condition was not met | D |
-| BLOCKED_GOOD_SIGNAL | run | A filter rejected a signal that would have reached its target (missed profit) | D |
-
-## G. Trust flags (about the evidence, not the EA)
-
-| ID | Level | What it catches | Needs |
-|---|---|---|---|
-| DATA_SUSPECT | trade | A tick gap above threshold during the trade | T |
-| NEWS_WINDOW | trade | Entry or exit within X minutes of a high-impact event (label, not a verdict) | T, C |
-| RUN_NOT_RECONCILED | run | MT4's trades do not match the tick store closely enough; findings for this run are not trustworthy | T |
+| OUTSIDE_TRADING_HOURS | trade | A loss that opened outside the declared hours | T, P |
+| MAX_POSITIONS_EXCEEDED | run | Losses taken while more positions were open than declared | T, P |

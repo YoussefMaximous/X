@@ -157,3 +157,24 @@ Why: The user asked for "the loss classification system which classifies the typ
 Alternatives rejected: counting a trade under every defect it carries: the totals would exceed the real loss and mislead. Hiding losses that fit no type: it would make the software look more certain than it is.
 Supersedes: none (adds to D-7 and D-8)
 Decided by: user (the feature), Lead (one main cause, the "Unexplained" type)
+
+## D-23 · 2026-11-20 · ALL
+Decision: A defect is the reason a losing trade lost. Every loss is classified into exactly one type (D-22): how many times that reason happened, what it cost, and one click opens that loss on the chart. Catalogue v1 holds only loss reasons. A winning trade, a missed trade, a broken rule that did not cause a loss, and a warning about the data are not defects and are not in the first release. The check that a run matches the ticks (D-9) stays; it is a trust check, not a defect type.
+Why: The user, in his words: "defects are the reasons of the loss classified into different types".
+Alternatives rejected: keeping the wider list (fragile winners, order errors, trust flags): that is a different product from the one the user described.
+Supersedes: the widening in D-7 ("not only losses"). The rest of D-7 stands: the end user is the expert, and the catalogue is `.teams/DEFECTS.md`.
+Decided by: user
+
+## D-24 · 2026-11-20 · ALL
+Decision: Classifying the reason of a loss is the core of the product, and it is hard. A loss can carry more than one reason, or none. Nothing about how those reasons are counted, named or switched off is locked. The earlier rule of exactly one main cause per loss is withdrawn. The screen for this is an open design, sent to Fable in `.teams/teams/lead/work/checkpoints/2026-11-20-loss-types-screen.md`.
+Why: The user, in his words: "knowing the type of the loss as in classifying it is extremely challenging and hard but it is the core of our product", and "a loss can be multiple reasons or not there are no locked rules".
+Alternatives rejected: keeping one forced cause so the counts add up to the number of losses. That was the Lead's rule, and the user rejected it.
+Supersedes: the "exactly one main cause" rule in D-22. The rest of D-22 stands: click a loss and the chart opens on it with replay.
+Decided by: user
+
+## D-25 · 2026-11-20 · ALL
+Decision: A loss can carry more than one reason. One of them is the main reason: the one that accounts for the most of that loss. Any other reason counts only if it passes a gate, a score high enough against the size of the loss. A reason that fails the gate is not listed. How the score is calculated and where the gate sits are not settled; Fable is asked to design them in the losses-screen checkpoint.
+Why: The user, in his words: "if multiple reasons of loss it should have 1 main reason which is the most and maybe put a gate that says if it actually can count as 2 or 3 or all 5 or only 1 there should be gates or something like a score enough to the loss total".
+Alternatives rejected: listing every weak match as a reason. Forcing exactly one reason in every case.
+Supersedes: none (narrows D-24: several reasons are allowed, but only the main one is automatic, and the rest must clear a gate)
+Decided by: user (the rule), Lead (the score itself stays open)

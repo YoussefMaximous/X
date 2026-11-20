@@ -116,14 +116,14 @@ The team works inside loss-lens. MT4 runs in the background to execute the EA an
 
 **Chart engine:** chosen by a short trial at the start of the app increment, between `lightweight-charts` with our own additions and our own canvas chart. It must pass three checks: looks like MT4 side by side, supports the drawing tools, and plays a day of ticks at 60 frames per second.
 
-## Loss classification (D-22)
+## Loss classification (D-24)
 
-- **One main cause per losing trade.** Each detector says whether it can be the cause of a loss. When a losing trade carries several, the main cause is picked by a fixed, written order (in `defects.toml`, changeable by the expert), and the app shows why that one was picked. The other defects stay on the trade as tags.
-- **"Unexplained" is a type.** A loss no detector explains is counted and shown there. A large "Unexplained" share means the catalogue needs a new defect, which is exactly what the add-a-defect recipe is for.
-- **The numbers add up.** The counts of all types equal the number of losing trades, and their money equals the total loss, to the cent. A test checks this on every run.
-- **The Losses panel** (in the Terminal style panel): one row per type with count, money lost, share of all losses, average and worst loss, and a small month-by-month trend. Sort by any column. Click a type to list its trades; click a trade and the chart goes to that moment with the proof drawn and replay ready; one key goes to the next one.
-- **Which result is classified:** the real-spread result (D-19) by default, with a switch to "MT4 says". A trade that loses in one and not in the other is its own type, because that difference is the reason the software exists.
-- Non-loss defects (risky wins, rule breaks, errors) stay in the defect list beside it; they are not forced into the loss types.
+Classifying why a trade lost is the core of the product, and it is the hard part. A loss can have several reasons, or none. When several fit, one is the main reason, the one that accounts for the most of the loss, and each further reason must pass a gate: a score high enough against that loss (D-25). How the score and the gate work is not settled. The screen (types on and off, every loss listed from the biggest, the pattern shown before the name, the money and the spread of each type) is being designed; the brief is `.teams/teams/lead/work/checkpoints/2026-11-20-loss-types-screen.md`.
+
+What already stands:
+- A defect is a reason a loss happened (D-23). The draft reasons are in `.teams/DEFECTS.md`.
+- Clicking a loss opens our chart at that moment, with replay.
+- Results can be read as "MT4 says" or "with real spreads" (D-19).
 
 ## Data tab (D-16, D-17)
 

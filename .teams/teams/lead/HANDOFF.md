@@ -34,13 +34,13 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - measured: `dukascopy-node` 1.51.1 downloads XAUUSD ticks on this PC when `NODE_OPTIONS=--use-system-ca` is set and `--chrome-path` points at Chrome. One day takes about 7 s.
 - measured: 2026-03-03 has 554,076 ticks, first ts 1772496001086, last ts 1772582399247; Saturday gives a 0-byte file with exit 0; today's ticks are current to within seconds.
 - measured: this PC has two MetaTrader 5 installs and no MT4.
-- Catalogue v1 of 58 defects written (`.teams/DEFECTS.md`); detector contract and accuracy rules in ARCHITECTURE.md.
+- Catalogue v1 was 58 rows. D-23 (user, 2026-11-20) corrects it: a defect is only the reason a loss happened. Rows that were not loss reasons were removed. The expert still reviews the list after the software works (D-11).
 - measured (inc-1 review): all nine checks pass; two days re-downloaded outside the builder's code are identical to the store; a hard kill mid-sync breaks nothing; manifest and files agree; every gap over 300 s is a daily break, a US-holiday early close, or one 469 s quiet spell. Details in the Judgment in `inc-1.md`.
 - measured: the daily break starts at 20:59 UTC from 2026-03-09 and at 21:59 UTC from 2026-11-02 (US daylight saving), which fixes the server-time rule for the MT4 export (D-18).
 - The user's other project (`C:\Users\yr471\OneDrive\Desktop\mt4-xasu-work`, read-only) holds a working ticks-to-`.hst` converter and a handoff note; it is the reference for the chart-history half of the MT4 export. It was never loaded into a real MT4.
 
 ## Decisions
-D-1 to D-22 in `.teams/DECISIONS.md` (D-21: inspection happens in our own chart, which looks and works like MT4, checked side by side against the real MT4; the MT4 jump is now an optional extra built late; D-22: one main cause per losing trade, "Unexplained" type, Losses panel that adds up to the total; D-17: Data tab with one package per year, Download and Top up buttons; D-18: MT4 export writes `.hst` for charts and `.fxt` with real ticks for the tester; D-19: loss-lens fills orders on real bid and ask, layer 1 re-fill for any EA then layer 2 simulated broker for source EAs; D-20: nothing leaves the PC, no automatic download, guard test `tests/test_no_network.py`, project to be open source, D-12 superseded). Measured for D-19: real spread in 2026 has median 0.65, 99th percentile 2.21, range 0.001 to 15.0, never zero or negative. The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
+D-1 to D-22 in `.teams/DECISIONS.md` (D-21: inspection happens in our own chart, which looks and works like MT4, checked side by side against the real MT4; the MT4 jump is now an optional extra built late; D-22's one-cause rule is withdrawn by D-24: classification is the hard core, a loss can have several reasons or none, the screen is an open Fable design; D-17: Data tab with one package per year, Download and Top up buttons; D-18: MT4 export writes `.hst` for charts and `.fxt` with real ticks for the tester; D-19: loss-lens fills orders on real bid and ask, layer 1 re-fill for any EA then layer 2 simulated broker for source EAs; D-20: nothing leaves the PC, no automatic download, guard test `tests/test_no_network.py`, project to be open source, D-12 superseded). Measured for D-19: real spread in 2026 has median 0.65, 99th percentile 2.21, range 0.001 to 15.0, never zero or negative. The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
 
 ## Ruled out
 - Re-implementing EA logic in our own engine (D-3).
@@ -48,6 +48,7 @@ D-1 to D-22 in `.teams/DECISIONS.md` (D-21: inspection happens in our own chart,
 - A rule-builder screen as the way to add defects (D-8).
 
 ## Waiting on
+- User: paste Fable's reply on the losses screen (packet `2026-11-20-loss-types-screen.md`). Not decided yet: per-type on/off, the big-to-small list of every loss, pattern-then-name, and the statistics on each type.
 - User: when the repository goes public and under which licence (asked 2026-11-20). Before it goes public, the `.teams/` files need a pass: they hold this PC's folder paths and the user's GitHub name.
 - MT4: nothing more from the user; it connected to the demo at 18:48 (see "State").
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
