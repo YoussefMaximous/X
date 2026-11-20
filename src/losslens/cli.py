@@ -140,7 +140,10 @@ def sync_days(
             if status == "imported" or (not force and status in DONE_STATUSES):
                 ticks = int(entry.get("ticks", 0))
                 counts[str(status)] += 1
-                printer(f"{iso}  {status:<9} {ticks:>9}  {0.0:7.2f}s  (skipped)")
+                printer(
+                    f"{iso}  {status:<9} {ticks:>9}  {0.0:7.2f}s  (skipped)",
+                    flush=True,
+                )
                 day += timedelta(days=1)
                 continue
 
@@ -163,7 +166,8 @@ def sync_days(
             counts["failed"] += 1
             printer(
                 f"{iso}  {'failed':<9} {0:>9}  {time.perf_counter() - day_started:7.2f}s  "
-                f"{str(error)[:300]}"
+                f"{str(error)[:300]}",
+                flush=True,
             )
             day += timedelta(days=1)
             continue
@@ -197,14 +201,16 @@ def sync_days(
             counts[status] += 1
             printer(
                 f"{iso}  {status:<9} {ticks:>9}  "
-                f"{time.perf_counter() - day_started:7.2f}s"
+                f"{time.perf_counter() - day_started:7.2f}s",
+                flush=True,
             )
         except Exception as exc:
             failures.append(iso)
             counts["failed"] += 1
             printer(
                 f"{iso}  {'failed':<9} {0:>9}  {time.perf_counter() - day_started:7.2f}s  "
-                f"{str(exc)[:300]}"
+                f"{str(exc)[:300]}",
+                flush=True,
             )
         finally:
             if csv_path is not None:
@@ -221,7 +227,8 @@ def sync_days(
             f"{name}={counts.get(name, 0)}"
             for name in ("complete", "empty", "partial", "imported", "failed")
         )
-        + f", {elapsed:.2f}s"
+        + f", {elapsed:.2f}s",
+        flush=True,
     )
     return {"failures": failures, "counts": dict(counts), "elapsed_seconds": elapsed}
 
