@@ -1,6 +1,6 @@
 # Increment inc-2, part A: Safety guards
 
-Planned: 2026-11-20 · Status: part A sent back twice (2026-11-20), current brief is "Send-back 2 of part A" at the end · Phase: prototype
+Planned: 2026-11-20 · Status: part A accepted and pushed 2026-11-20, after two send-backs (judgments below); part B not yet written · Phase: prototype
 
 Part B (the MT4 run spike) will be added to this file after part A is accepted. Do not start it.
 
@@ -292,3 +292,18 @@ Two new rules. Change only `tests/_guard_scan.py` and `tests/test_no_network.py`
 5. Only `tests/_guard_scan.py`, `tests/test_no_network.py`, your report and your `HANDOFF.md` changed.
 
 **Return:** `.teams/teams/builder/work/report-inc-2a3.md` in the same form, and an updated `HANDOFF.md`.
+
+## Judgment on send-back 2 of part A (filled in by the Lead, 2026-11-20)
+
+**builder: accepted. inc-2 part A (safety guards) is accepted and pushed.**
+
+What the Lead ran (measured, code at `e33bfb0`, in a copy of the repository, each change alone and undone):
+- Check 1: 70 tests pass; `ruff check`, `ruff format --check` and `mypy` exit 0; no suppression.
+- Checks 2, 3 and 4: 45 changes, each caught with `pytest` exit 1 and the expected rule named: the first brief's twelve and the socket test; P1 to P12 and P14; the six extras of send-back 1; N1, N2, N3, N10, N11, N12, N13; the four extras of send-back 2; plus `tests/tool.js` (2k) and `subprocess.check_output` in `dukascopy.py` (2l). After all were undone: exit 0.
+- Check 5: only `tests/_guard_scan.py`, `tests/test_no_network.py`, the report and the builder's `HANDOFF.md` changed; no production file changed since `fad222c`.
+
+The guard rules now in force: 2a approved imports (and imported submodules), 2b no hidden execution through `os`, 2c no address of any scheme in `src/`, 2d exact Python dependencies and build tools, 2e pinned Node side with npm-registry sources and checksums, 2f only `ticks sync` starts a program, 2g network blocked in tests, 2h no online call or DLL import in MQL files, 2i no EA files outside `mql4/`, 2j no remote file systems, 2k code only as `.py` under `src/` or `tests/`, 2l exactly one program start in the one allowed file, 3a no order function, 3b no trading library, 3c no stored password.
+
+Known limit, accepted: code written to hide on purpose is outside what these scans can see. Review of every change covers that.
+
+When later parts add code in new places (`mql4/`, the app), the Lead extends the approved lists in the brief for that part, and adds the guards those parts need (tester-only start file, reference EA allowed to hold order functions and required to check `IsTesting()`, server bound to `127.0.0.1`, no outside address in app screens).
