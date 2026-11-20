@@ -1,48 +1,50 @@
-# Builder handoff — after inc-1
+# Builder handoff — after inc-1 send-back 1
 
-Updated: 2026-11-20 · Increment: inc-1 (tick store) · Report: `work/report-inc-1.md`
+Updated: 2026-11-20 · Increment: inc-1 send-back 1 · Report: `work/report-inc-1b.md`
 
 ## Goal
 
-A local, validated store of XAUUSD 2026 ticks that one command fills and tops up, that any other tick CSV can be imported into, and that every later part reads through `read_ticks()`.
+Fix exactly the five items in `.teams/increments/inc-1.md`, "Send-back 1", without changing the storage contract or the stored tick data.
 
 ## State and how to check it
 
-inc-1 is finished and reported. All nine checks in `.teams/increments/inc-1.md` pass on this PC.
+The five items are fixed and committed locally (`1488af3` code; report in the next commit). The real store was not re-downloaded or written.
 
 ```text
 python -m pytest -q
-python -m losslens ticks status --symbol XAUUSD
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
 python -m losslens ticks verify --symbol XAUUSD
-python -m losslens ticks query --symbol XAUUSD --from 2026-03-03T14:00:00Z --to 2026-03-03T14:10:00Z
+python -m losslens ticks status --symbol XAUUSD
 ```
 
-Local data (not in git): 324 days, 2026-01-01..2026-11-20 — 276 complete, 47 empty, 1 partial (today), 0 failed. 277 Parquet files, 84,044,373 ticks, 516.84 MiB. Verify: 0 out-of-order, 0 `ask < bid`, 0 non-positive prices; only missing weekday is 2026-04-03 (Good Friday).
+Expected: 35 tests pass; all three tools exit 0; verify prints `Integrity problems: 0` and exits 0; status shows 276 complete, 47 empty, 1 partial (324 days).
 
 ## Done (evidence in the report)
 
-- `sync` day by day, atomic Parquet + manifest, retries, skip finished days, `--force`, Ctrl+C safe and resumable.
-- Full sync completed; a Ctrl+C test stopped after 2026-01-09 with no `.tmp` and all files readable; the restart skipped those days and continued. A later server restart also lost nothing.
-- `verify` writes `data/reports/quality-XAUUSD.json` and exits 1 on out-of-order rows.
-- `query` reads only the day files in range; measured 14–51 ms for the 10-minute check (< 200 ms).
-- `import` maps arbitrary CSV columns, applies `--utc-offset-minutes`, splits by UTC day, replaces those days, status `imported`.
-- `status` prints coverage, counts, ticks and disk size.
-- 21 tests pass; fixture CSV is under 1 KB.
+- **1 Setup problems:** distinct `SetupError`; not retried, no next day, one `setup problem:` line, exit 2. With `node_modules` renamed, the real 4-day forced sync exited 2 in 0.85 s and the manifest hash did not change.
+- **2 Temp folders:** `download_day` cleans in `finally` on failure and `KeyboardInterrupt`; `sync_days` cleans after conversion; stale `losslens-duka-*` folders older than one hour are removed at sync start with a temp root that tests can pass in.
+- **3 Verify integrity:** per-day `problems` (`file_missing`, `unexpected_file`, `row_count_mismatch`, `first_last_mismatch`, `rows_outside_day`), plus `files_not_in_manifest`; prints `Integrity problems` and exits 1. Real store 0; deleted copy names the day and exits 1.
+- **4 One store:** `LOSSLENS_DATA`, else `<repo>/data` found from the package folder; `read_ticks()` and `TickStore()` share it; `node_modules` and the downloader's working folder use the same repo root. From `C:\Users\yr471` the same 324 days show and no local `data` folder appears.
+- **5 Quality:** `ruff` (line 100; E, F, I, B, UP), strict `mypy` on `src/losslens`, both in dev extras; `.github/workflows/ci.yml` for Windows, Python 3.11/3.13; the four commands are in the README.
+- Stored data untouched: 276 complete / 47 empty / 1 partial; 83,496,260 ticks in completed days; 2026-03-03 still 554,076 rows with the same first/last.
 
 ## Ruled out / do not retry
 
-- **MT4 installation:** D-13 and the amended inc-1 brief say the user installs IC Markets MT4. This PC has two MetaTrader 5 installs (`terminal64.exe`) and no MT4. Do not download from the IC client area.
-- `pq.read_table` in the read path: ~250 ms first call per process on Windows; `pq.ParquetFile(path).read()` is ~14 ms. Do not switch back without measuring.
-- ISO parsing of Dukascopy `timestamp`: it is already epoch milliseconds. Column mapping is by name, ask before bid.
-- Installing formatters/linters or adding `losslens doctor` / the no-live-trading guard test during inc-1: not named in the inc-1 brief or dependency list.
+- Treating setup problems as day failures: they now abort the sync with exit 2.
+- Retrying a `SetupError`: tests assert exactly one call over a three-day range.
+- `pq.read_table` for the hot read path: keep `ParquetFile.read` plus binary search.
+- Adding formatter/linter exceptions: `mypy` skips only pyarrow internals; no bare type ignores.
+- Running a real sync against the store to test the send-back: it would re-download data; the setup check and unit tests cover the code paths.
 
 ## Open
 
-- User: install IC Markets MT4 and open a demo account; the Lead then confirms it is MT4 and reads the gold symbol name and server time (D-13), needed for inc-2.
-- Lead: name the formatter/linter if `QUALITY.md` §7 is to apply now; place `losslens doctor` and the per-run log (QUALITY §3); confirm `tests/test_no_live_trading.py` is inc-2, as ARCHITECTURE says.
-- Tick data keeps topping up until 2026-12-31; run `python -m losslens ticks sync --symbol XAUUSD --from 2026-01-01` periodically (or from the last stored day) — finished days are skipped.
-- `data/` is local to this PC and ignored by git, as required.
+- Lead: run Done-when #5 (live Ctrl+C mid-download) and the GitHub workflow after pushing; the local CI file cannot run here.
+- Lead: review the five fixes, then brief inc-2 (MT4 run spike, reference EA, journal capture).
+- User: install IC Markets MT4 and open a demo account (D-13); no MT4 is installed on this PC.
+- A locked `.pytest_tmp` folder from an earlier local pytest experiment remains ignored and excluded from ruff; it is not tracked and needs no action.
 
 ## Next step
 
-Lead runs the nine checks in `.teams/increments/inc-1.md`, fills the Judgment, and briefs inc-2 (MT4 run spike with the reference EA, capturing the journal as well as the trades). The MT4 export that turns these ticks into MT4 tester history belongs to that increment.
+Lead reviews inc-1b and, if accepted, starts inc-2 once MT4 is installed.

@@ -32,6 +32,7 @@ files = ["src/losslens"]
 python_version = "3.11"
 
 [[tool.mypy.overrides]]
+# pyarrow ships incomplete type information; skip its internals, keep strict on our code.
 module = ["pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
