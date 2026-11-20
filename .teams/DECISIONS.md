@@ -129,3 +129,17 @@ Why: The user supplied his working `.hst` method. It is right for charts. For te
 Alternatives rejected: `.hst` only: interpolated ticks. Tick Data Suite: paid, and the user has not said the team owns it; the runner seam keeps it possible.
 Supersedes: none
 Decided by: Lead, on the user's input
+
+## D-19 · 2026-11-20 · ALL
+Decision: loss-lens does the order filling on real bid and ask; MT4 only executes the EA's code. Two layers, both built by us. Layer 1 (any EA): after an MT4 run, every order is re-filled tick by tick on real bid and ask, and results are shown as "MT4 says" beside "with real spreads", with later orders that depend on a corrected one marked. Layer 2 (EAs with source, one include line): a simulated broker inside the tester run, so decisions and fills are both on real spreads; it must first match MT4 order for order at a fixed spread. Details in ARCHITECTURE.md, "Real-spread execution".
+Why: The user and the expert want runs that use the real spreads in our ticks, because MT4's tester applies one fixed spread (measured on the 84.0M ticks of 2026 so far: the real spread has a median of 0.65, is above 2.21 for 1% of ticks, and ranges from 0.001 to 15.0). The user chose to build layer 2 rather than buy it; the expert has his EAs' source.
+Alternatives rejected: a fully separate engine that runs the strategy: an MT4 EA can only be executed by MT4, so it would test a rewrite, not the EA. Tick Data Suite: the user chose to build; the runner seam still allows it. MT5's tester (real spreads natively): the EAs are MT4.
+Supersedes: none (D-3 stands: the EA's logic still runs only in MT4; what changes is who fills the orders)
+Decided by: user
+
+## D-20 · 2026-11-20 · ALL
+Decision: Nothing leaves the PC. The software's only online action is downloading public price ticks from Dukascopy, and only when the user asks for it. No telemetry, analytics, update checks, accounts or cloud. EA files are never uploaded, copied out or added to git; the software records only an EA's name and fingerprint. The app listens on `127.0.0.1` only and loads nothing from the internet. Our MT4 files contain no online function and no DLL import. Enforced by `tests/test_no_network.py`, a dependency allow-list, rules for AI agents, and a plain-words page in the repository. The project is to be open source. Details in ARCHITECTURE.md, "Privacy".
+Why: The user's requirement, in his words: "it shouldnt do anything bad for the user or do ANYTHING ONLINE ... or be any risk on any user and his data or on his experts", "its an opensource".
+Alternatives rejected: keeping the automatic top-up when the app opens: it is online activity the user did not start. Reading EA source to give richer analysis by default: not needed, and it is the user's most sensitive file.
+Supersedes: D-12 (no automatic top-up; the app shows how old the data is and offers the Top up button). Changes D-10's "private" to "open source", with the date of going public and the licence still to be chosen by the user.
+Decided by: user (the rule), Lead (how it is enforced)

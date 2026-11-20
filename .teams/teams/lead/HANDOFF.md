@@ -1,6 +1,6 @@
 # Lead handoff
 
-Updated: 2026-11-20 (after the user's second message)
+Updated: 2026-11-20 (after D-19 real spreads and D-20 nothing leaves the PC)
 
 ## Goal
 Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs, reviews and decides; the builder (a cheaper model in another tool, kickoffs pasted by the user) implements.
@@ -12,6 +12,10 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - "first i should add everything that could be needed, and be extremely accuracte, and easy to use, and doesnt make mistakes"
 - "when I want to inspect one of them i click on it and it should take me to my MT4 on the exact day and it should show me the thing that happend there"
 - Test EA: the Lead's choice; "enough rules so it wouldn't have losses everywhere", "many tickets a day".
+- "we want the software to do the runs not MT4! why? because MT4 tester got a problem that we want to fix, fixed spread! while our tick data have the real spreads" (answered by D-19; the user chose "Build layer 2 ourselves after layer 1, for EAs with source code").
+- "make the software safe for any user ... that it doesnt steal his EAs or anything and even the AI that will read the software ... its an opensource, and it shouldnt do anything bad for the user or do ANYTHING ONLINE, like it shouldnt give anything online or be any risk on any user and his data or on his experts! should be extremely safe please" (D-20).
+- "the software SHOULD NEVER, open anything live or real money that is forbidden completely ... no future updates or ANYTHING should be able to use real money" (D-14).
+- The Lead does not log in to MT4 for the user and does not handle his demo password or personal details.
 - The user reads little: keep messages to him short and plain.
 
 ## State and how to check it
@@ -32,7 +36,7 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 - The user's other project (`C:\Users\yr471\OneDrive\Desktop\mt4-xasu-work`, read-only) holds a working ticks-to-`.hst` converter and a handoff note; it is the reference for the chart-history half of the MT4 export. It was never loaded into a real MT4.
 
 ## Decisions
-D-1 to D-18 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, Download and Top up buttons; D-18: MT4 export writes `.hst` for charts and `.fxt` with real ticks for the tester). The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
+D-1 to D-20 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, Download and Top up buttons; D-18: MT4 export writes `.hst` for charts and `.fxt` with real ticks for the tester; D-19: loss-lens fills orders on real bid and ask, layer 1 re-fill for any EA then layer 2 simulated broker for source EAs; D-20: nothing leaves the PC, no automatic download, guard test `tests/test_no_network.py`, project to be open source, D-12 superseded). Measured for D-19: real spread in 2026 has median 0.65, 99th percentile 2.21, range 0.001 to 15.0, never zero or negative. The ones that shape every review: D-9 (accuracy), D-10 (only the Lead pushes, after review), D-14 (no live trading, ever), D-15 (quality bar in `.teams/QUALITY.md`), D-16 (one software, two uses: quick run for manual inspection, and the "Download missing days" button).
 
 ## Ruled out
 - Re-implementing EA logic in our own engine (D-3).
@@ -40,7 +44,8 @@ D-1 to D-18 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, 
 - A rule-builder screen as the way to add defects (D-8).
 
 ## Waiting on
-- User: paste the builder kickoff (he added "install MT4" to it; the brief now tells the builder not to, D-13); install IC Markets' MT4 himself and open a demo account (the Lead then checks it is MetaTrader 4 and reads the gold symbol's name and server time); say whether the team owns Tick Data Suite.
+- User: when the repository goes public and under which licence (asked 2026-11-20). Before it goes public, the `.teams/` files need a pass: they hold this PC's folder paths and the user's GitHub name.
+- MT4 (checked 2026-11-20 after the user said "logged in"): the terminal is running but still has no `history\<server>` folder, so it has not connected to the demo yet.
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
 - Builder: report for send-back 2, `report-inc-1c.md`.
 - User: open MT4, finish opening the demo account inside the terminal so it connects, open a gold chart, then say so.
@@ -51,7 +56,7 @@ D-1 to D-18 in `.teams/DECISIONS.md` (D-17: Data tab with one package per year, 
 - Setup on the expert's PC (his MT4, his broker's symbol name and server time).
 
 ## Next step
-When the builder reports send-back 2, run its five "Done when" checks myself. If they pass: accept inc-1, push `main`, confirm the GitHub checks run green, then brief inc-2 (MT4 run spike: prove `.hst` and `.fxt` in a real MT4, reference EA, quick run from the command line, journal capture, guard test, `losslens doctor`, per-run log). inc-2 cannot be verified until the user has installed MT4.
+When the builder reports send-back 2, run its five "Done when" checks myself. If they pass: accept inc-1, push `main`, confirm the GitHub checks run green, then brief inc-2 (MT4 run spike: prove `.hst` and `.fxt` in a real MT4, reference EA, quick run from the command line, journal capture, both guard tests (no live trading, no network), `losslens doctor`, per-run log, and whether the runner's own MT4 copy can run tests without being logged in). Layer 1 goes into inc-3 and layer 2 is its own increment after the MT4 jump (ARCHITECTURE.md, "Increment sequence"). inc-2 cannot be verified until MT4 has connected to the demo.
 
 ## Files
 `.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`, `.teams/DEFECTS.md`, `.teams/ROSTER.md`, `.teams/DECISIONS.md`, `.teams/KICKOFF.md`, `.teams/increments/inc-1.md`, `.teams/teams/builder/CHARTER.md`, `AGENTS.md`.

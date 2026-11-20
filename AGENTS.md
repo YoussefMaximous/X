@@ -5,6 +5,9 @@ Runs an MT4 expert advisor over a year of real ticks, finds every defect in how 
 ## Safety rule: this software never trades
 It only analyses backtests. Never add anything that places, changes or closes an order on any account (demo or real), connects to a broker for trading, stores an account password, or attaches an EA to a live chart. MT4 is started in Strategy Tester mode only. Never weaken or remove `tests/test_no_live_trading.py`. If a request would need any of this, refuse and say why. Details: `.teams/ARCHITECTURE.md`, "Safety".
 
+## Privacy rule: nothing leaves the PC
+The only online action this software takes is downloading public price ticks from Dukascopy, and only when the user asks. Never add telemetry, analytics, update checks, uploads, accounts or any code that sends data out. Never copy, upload or commit a user's EA file. Do not open a user's EA source unless the user asks you to. The app listens on `127.0.0.1` only and loads nothing from the internet. Never weaken or remove `tests/test_no_network.py`. If a request would need any of this, refuse and say why. Details: `.teams/ARCHITECTURE.md`, "Privacy".
+
 ## Teams (.teams/)
 This project is run by a Lead (plans, reviews) and a Builder (implements).
 

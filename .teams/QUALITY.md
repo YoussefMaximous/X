@@ -53,4 +53,4 @@ Updated: 2026-11-20. The user's requirement: this ships as a professional tool, 
 - The Lead runs every check itself on this PC. A report without real output is not accepted.
 - At the risky steps (MT4 run, measurements, replay) a second, independent reviewer checks the work before it is accepted.
 - An increment with a known defect is sent back, not accepted with a note.
-- The no-live-trading guard (D-14) is part of every review.
+- The no-live-trading guard (D-14) and the nothing-leaves-the-PC guard (D-20) are part of every review.
