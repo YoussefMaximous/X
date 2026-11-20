@@ -3,32 +3,30 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 import os
 import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-SKIP_DIR_NAMES = frozenset(
+ROOT_SKIP_DIRS = frozenset({".teams", "data", "build", "dist"})
+ANY_SKIP_DIRS = frozenset(
     {
-        ".teams",
         ".git",
         "node_modules",
-        "data",
         ".venv",
         ".pytest_cache",
         ".pytest_tmp",
         ".ruff_cache",
         ".mypy_cache",
         "__pycache__",
-        "build",
-        "dist",
     }
 )
 
 EA_SUFFIXES = frozenset({".ex4", ".ex5", ".mq4", ".mq5", ".mqh"})
 MQL_SUFFIXES = frozenset({".mq4", ".mq5", ".mqh"})
-WEB_MARKERS = ("http://", "https://", "ftp://", "ws://")
+WEB_ADDRESS_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://")
 BAD_CALL_NAMES = frozenset({"eval", "exec", "compile", "__import__"})
 BAD_OS_ATTRIBUTES = frozenset({"system", "popen", "startfile"})
 MQL_ONLINE_NAMES = (
@@ -71,10 +69,15 @@ def repository_root() -> Path:
     return find_root()
 
 
-def iter_repository_files(root: Path) -> Iterator[tuple[str, Path]]:
+def iter_repository_files(root: Path, *, include_teams: bool = False) -> Iterator[tuple[str, Path]]:
     root = Path(root)
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [name for name in dirnames if not _skip_dir(name)]
+        parent_is_root = Path(dirpath) == root
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if not _skip_dir(name, parent_is_root=parent_is_root, include_teams=include_teams)
+        ]
         for name in filenames:
             path = Path(dirpath) / name
             yield path.relative_to(root).as_posix(), path
@@ -87,8 +90,12 @@ def iter_text_files(root: Path) -> Iterator[tuple[str, str]]:
             yield relative, text
 
 
-def _skip_dir(name: str) -> bool:
-    return name in SKIP_DIR_NAMES or name.endswith(".egg-info")
+def _skip_dir(name: str, *, parent_is_root: bool, include_teams: bool) -> bool:
+    if name in ANY_SKIP_DIRS or name.endswith(".egg-info"):
+        return True
+    if parent_is_root and name in ROOT_SKIP_DIRS:
+        return not (include_teams and name == ".teams")
+    return False
 
 
 def _read_text(path: Path) -> str | None:
@@ -113,6 +120,21 @@ def _line_of(text: str, index: int) -> int:
     return text.count("\n", 0, index) + 1
 
 
+def _is_ours(name: str) -> bool:
+    return name == "losslens" or name.startswith("losslens.")
+
+
+def _is_module(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except Exception:
+        return False
+
+
+def _forbidden_os(attribute: str) -> bool:
+    return attribute in BAD_OS_ATTRIBUTES or attribute.startswith(("exec", "spawn"))
+
+
 def check_imports(
     source: str,
     filename: str,
@@ -125,7 +147,7 @@ def check_imports(
         if isinstance(node, ast.Import):
             for alias in node.names:
                 name = alias.name
-                if name in allowed:
+                if _is_ours(name) or name in allowed:
                     continue
                 if name == "subprocess" and filename in subprocess_allowed:
                     continue
@@ -136,13 +158,26 @@ def check_imports(
             if node.level:
                 continue
             name = node.module or ""
-            if not name or name.startswith("losslens") or name in allowed:
+            if not name or _is_ours(name):
                 continue
-            if name == "subprocess" and filename in subprocess_allowed:
+            if name not in allowed:
+                if name == "subprocess" and filename in subprocess_allowed:
+                    continue
+                problems.append(
+                    _problem(filename, node.lineno, "2a", f"import {name!r} is not approved")
+                )
                 continue
-            problems.append(
-                _problem(filename, node.lineno, "2a", f"import {name!r} is not approved")
-            )
+            for alias in node.names:
+                full_name = f"{name}.{alias.name}"
+                if _is_module(full_name) and full_name not in allowed:
+                    problems.append(
+                        _problem(
+                            filename,
+                            node.lineno,
+                            "2a",
+                            f"import {full_name!r} is not approved",
+                        )
+                    )
     return problems
 
 
@@ -150,39 +185,102 @@ def check_dangerous_calls(source: str, filename: str) -> list[str]:
     problems: list[str] = []
     tree = ast.parse(source, filename=filename)
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if isinstance(func, ast.Name) and func.id in BAD_CALL_NAMES:
-            problems.append(
-                _problem(filename, node.lineno, "2b", f"call to {func.id!r} is not allowed")
-            )
-        elif (
-            isinstance(func, ast.Attribute)
-            and isinstance(func.value, ast.Name)
-            and func.value.id == "os"
-        ):
-            attribute = func.attr
-            if attribute in BAD_OS_ATTRIBUTES or attribute.startswith(("exec", "spawn")):
+        if isinstance(node, ast.Attribute):
+            if (
+                isinstance(node.value, ast.Name)
+                and node.value.id == "os"
+                and _forbidden_os(node.attr)
+            ):
                 problems.append(
                     _problem(
                         filename,
                         node.lineno,
                         "2b",
-                        f"call to os.{attribute} is not allowed",
+                        f"access to os.{node.attr} is not allowed",
                     )
                 )
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "os" and alias.asname:
+                    problems.append(
+                        _problem(
+                            filename,
+                            node.lineno,
+                            "2b",
+                            "import os as another name is not allowed",
+                        )
+                    )
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == "os":
+            for alias in node.names:
+                if alias.name == "*" or _forbidden_os(alias.name):
+                    problems.append(
+                        _problem(
+                            filename,
+                            node.lineno,
+                            "2b",
+                            f"from os import {alias.name} is not allowed",
+                        )
+                    )
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id in BAD_CALL_NAMES:
+                problems.append(
+                    _problem(
+                        filename,
+                        node.lineno,
+                        "2b",
+                        f"call to {node.func.id!r} is not allowed",
+                    )
+                )
+            if (
+                node.func.id == "getattr"
+                and node.args
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id == "os"
+            ):
+                problems.append(
+                    _problem(filename, node.lineno, "2b", "getattr(os, ...) is not allowed")
+                )
+    return problems
+
+
+def check_remote_filesystems(source: str, filename: str) -> list[str]:
+    problems: list[str] = []
+    tree = ast.parse(source, filename=filename)
+    for node in ast.walk(tree):
+        name: str | None = None
+        if isinstance(node, ast.Attribute):
+            if node.attr in {"fs", "flight"}:
+                name = node.attr
+            elif node.attr.endswith("FileSystem"):
+                name = node.attr
+        elif isinstance(node, ast.Name) and node.id.endswith("FileSystem"):
+            name = node.id
+        elif isinstance(node, ast.alias) and node.name.endswith("FileSystem"):
+            name = node.name
+        if name is not None:
+            problems.append(
+                _problem(
+                    filename,
+                    getattr(node, "lineno", 0),
+                    "2j",
+                    f"remote filesystem name {name!r} found",
+                )
+            )
     return problems
 
 
 def check_web_addresses(text: str, filename: str) -> list[str]:
     problems: list[str] = []
-    for marker in WEB_MARKERS:
-        index = text.find(marker)
-        if index >= 0:
-            problems.append(
-                _problem(filename, _line_of(text, index), "2c", f"web address {marker!r} found")
+    for match in WEB_ADDRESS_RE.finditer(text):
+        scheme = match.group(0)[:-3]
+        problems.append(
+            _problem(
+                filename,
+                _line_of(text, match.start()),
+                "2c",
+                f"address scheme {scheme!r} found",
             )
+        )
     return problems
 
 
@@ -197,6 +295,22 @@ def dependency_names(items: list[str]) -> set[str]:
 
 def check_pyproject_dependencies(data: dict[str, Any]) -> list[str]:
     problems: list[str] = []
+    build = data.get("build-system", {})
+    if not isinstance(build, dict):
+        problems.append("pyproject.toml: rule 2d: build-system must be a table")
+    else:
+        requires = build.get("requires", [])
+        requires_names = dependency_names(requires if isinstance(requires, list) else [])
+        if requires_names != {"setuptools"}:
+            problems.append(
+                "pyproject.toml: rule 2d: build-system.requires must be exactly "
+                f"{{'setuptools'}}, found {sorted(requires_names)}"
+            )
+        if build.get("build-backend") != "setuptools.build_meta":
+            problems.append(
+                "pyproject.toml: rule 2d: build-system.build-backend must be "
+                "'setuptools.build_meta'"
+            )
     project = data.get("project", {})
     if not isinstance(project, dict):
         return ["pyproject.toml: rule 2d: [project] must be a table"]
@@ -243,7 +357,16 @@ def check_node_side(package: dict[str, Any], lock: dict[str, Any]) -> list[str]:
         problems.append("package-lock.json: rule 2e: dukascopy-node needs an integrity hash")
     if isinstance(packages, dict):
         for name, item in packages.items():
-            if isinstance(item, dict) and item.get("hasInstallScript"):
+            if name == "" or not isinstance(item, dict):
+                continue
+            if not str(item.get("resolved", "")).startswith("https://registry.npmjs.org/"):
+                problems.append(
+                    f"package-lock.json: rule 2e: {name} must resolve from "
+                    "https://registry.npmjs.org/"
+                )
+            if not item.get("integrity"):
+                problems.append(f"package-lock.json: rule 2e: {name} needs an integrity hash")
+            if item.get("hasInstallScript"):
                 problems.append(f"package-lock.json: rule 2e: {name} has an install script")
     return problems
 
@@ -256,7 +379,7 @@ def check_mql_online(text: str, filename: str) -> list[str]:
             problems.append(
                 _problem(filename, _line_of(text, index), "2h", f"MQL online call {token!r} found")
             )
-    socket_match = re.search(r"(?i)\bsocket\b", text)
+    socket_match = re.search(r"(?i)socket", text)
     if socket_match:
         problems.append(
             _problem(filename, _line_of(text, socket_match.start()), "2h", "MQL socket found")
@@ -271,7 +394,7 @@ def check_mql_online(text: str, filename: str) -> list[str]:
 
 def check_ea_files(root: Path) -> list[str]:
     problems: list[str] = []
-    for relative, path in iter_repository_files(root):
+    for relative, path in iter_repository_files(root, include_teams=True):
         if path.suffix.lower() not in EA_SUFFIXES:
             continue
         if relative.startswith("mql4/"):

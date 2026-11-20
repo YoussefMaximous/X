@@ -43,10 +43,32 @@ def test_src_imports_are_approved():
 def test_import_scanner_flags_bad_and_accepts_good():
     bad = guard.check_imports("import socket\n", "src/x.py", APPROVED_IMPORTS, SUBPROCESS_ALLOWED)
     assert bad and "src/x.py:1" in bad[0] and "rule 2a" in bad[0]
+    for source in (
+        "from pyarrow import flight\n",
+        "from pyarrow import fs\n",
+        "from losslens_evil import x\n",
+    ):
+        problem = guard.check_imports(source, "src/x.py", APPROVED_IMPORTS, SUBPROCESS_ALLOWED)
+        assert problem and "rule 2a" in problem[0]
     clean = guard.check_imports(
         "import json\nfrom . import x\n", "src/x.py", APPROVED_IMPORTS, SUBPROCESS_ALLOWED
     )
     assert clean == []
+    assert (
+        guard.check_imports(
+            "from pyarrow import compute\n", "src/x.py", APPROVED_IMPORTS, SUBPROCESS_ALLOWED
+        )
+        == []
+    )
+    assert (
+        guard.check_imports(
+            "from losslens.ticks import store\n",
+            "src/x.py",
+            APPROVED_IMPORTS,
+            SUBPROCESS_ALLOWED,
+        )
+        == []
+    )
     allowed = guard.check_imports(
         "import subprocess\n",
         "src/losslens/ticks/dukascopy.py",
@@ -64,11 +86,39 @@ def test_src_has_no_hidden_execution():
 
 
 def test_hidden_execution_scanner_flags_bad_and_accepts_good():
-    bad = guard.check_dangerous_calls("eval('1')\n", "src/x.py")
-    assert bad and "src/x.py:1" in bad[0] and "rule 2b" in bad[0]
-    bad_os = guard.check_dangerous_calls("os.system('x')\n", "src/x.py")
-    assert bad_os and "rule 2b" in bad_os[0]
+    for source in (
+        "eval('1')\n",
+        "os.system('x')\n",
+        "f = os.system\n",
+        "from os import system\n",
+        "from os import *\n",
+        "import os as o\n",
+        'x = getattr(os, "system")\n',
+    ):
+        bad = guard.check_dangerous_calls(source, "src/x.py")
+        assert bad and "rule 2b" in bad[0]
     assert guard.check_dangerous_calls("re.compile('x')\n", "src/x.py") == []
+    assert (
+        guard.check_dangerous_calls(
+            "import os\nfrom os import path\nos.path.join('a', 'b')\n", "src/x.py"
+        )
+        == []
+    )
+    assert guard.check_dangerous_calls('getattr(other, "system")\n', "src/x.py") == []
+
+
+def test_src_has_no_remote_filesystems():
+    problems = []
+    for relative, source in _src_files():
+        problems.extend(guard.check_remote_filesystems(source, relative))
+    assert not problems, "Remote-filesystem rule 2j failed:\n" + "\n".join(problems)
+
+
+def test_remote_filesystem_scanner_flags_bad_and_accepts_good():
+    for source in ("pa.fs\n", "pa.flight\n", "x = S3FileSystem()\n"):
+        bad = guard.check_remote_filesystems(source, "src/x.py")
+        assert bad and "rule 2j" in bad[0]
+    assert guard.check_remote_filesystems("pa.compute\n", "src/x.py") == []
 
 
 def test_src_has_no_web_addresses():
@@ -79,8 +129,10 @@ def test_src_has_no_web_addresses():
 
 
 def test_web_address_scanner_flags_bad_and_accepts_good():
-    bad = guard.check_web_addresses("# " + "https://" + "example.com\n", "src/x.py")
-    assert bad and "src/x.py:1" in bad[0] and "rule 2c" in bad[0]
+    for scheme in ("https", "s3", "wss", "gs", "file"):
+        bad = guard.check_web_addresses(scheme + "://bucket\n", "src/x.py")
+        assert bad and "src/x.py:1" in bad[0] and "rule 2c" in bad[0]
+        assert scheme in bad[0]
     assert guard.check_web_addresses("# no address here\n", "src/x.py") == []
 
 
@@ -91,18 +143,29 @@ def test_pyproject_dependencies_are_exact():
 
 
 def test_dependency_scanner_flags_bad_and_accepts_good():
+    build = {"requires": ["setuptools>=68"], "build-backend": "setuptools.build_meta"}
     bad = {
+        "build-system": build,
         "project": {
             "dependencies": ["pyarrow", "requests"],
             "optional-dependencies": {"dev": ["pytest", "ruff", "mypy"]},
-        }
+        },
     }
     assert guard.check_pyproject_dependencies(bad)
+    bad_backend = {
+        "build-system": {"requires": ["setuptools"], "build-backend": "hatchling.build"},
+        "project": {
+            "dependencies": ["pyarrow"],
+            "optional-dependencies": {"dev": ["pytest", "ruff", "mypy"]},
+        },
+    }
+    assert guard.check_pyproject_dependencies(bad_backend)
     good = {
+        "build-system": build,
         "project": {
             "dependencies": ["pyarrow>=14.0"],
             "optional-dependencies": {"dev": ["pytest>=8", "ruff>=0.9", "mypy>=1.15"]},
-        }
+        },
     }
     assert guard.check_pyproject_dependencies(good) == []
 
@@ -119,10 +182,22 @@ def test_node_scanner_flags_bad_and_accepts_good():
     lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
     bad_package = {"dependencies": {"dukascopy-node": "^1.51.1"}, "scripts": {}}
     bad_lock = {
-        "packages": {"node_modules/dukascopy-node": {"version": "1.51.1", "hasInstallScript": True}}
+        "packages": {
+            "": {},
+            "node_modules/dukascopy-node": {
+                "version": "1.51.1",
+                "integrity": "sha512-x",
+                "resolved": "https://registry.npmjs.org/dukascopy-node/-/dukascopy-node-1.51.1.tgz",
+                "hasInstallScript": True,
+            },
+            "node_modules/evil": {
+                "version": "1.0.0",
+                "resolved": "https://evil.example/evil-1.0.0.tgz",
+            },
+        }
     }
     problems = guard.check_node_side(bad_package, bad_lock)
-    assert len(problems) >= 3
+    assert len(problems) >= 4
     assert guard.check_node_side(package, lock) == []
 
 
@@ -227,7 +302,26 @@ def test_mql_scanner_flags_bad_and_accepts_good():
     assert bad_import and "rule 2h" in bad_import[0]
     bad_socket = guard.check_mql_online("soc" + "ket\n", "mql4/x.mq4")
     assert bad_socket and "rule 2h" in bad_socket[0]
+    bad_socket_create = guard.check_mql_online("Socket" + "Create();\n", "mql4/x.mq4")
+    assert bad_socket_create and "rule 2h" in bad_socket_create[0]
     assert guard.check_mql_online("// nothing online\n", "mql4/x.mq4") == []
+
+
+def test_text_scan_skips_only_root_place_folders(tmp_path):
+    (tmp_path / "src" / "losslens" / "data").mkdir(parents=True)
+    (tmp_path / "src" / "losslens" / "data" / "x.py").write_text(
+        "Order" + "Send(", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "build").mkdir(parents=True)
+    (tmp_path / "docs" / "build" / "x.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "x.py").write_text("x = 1\n", encoding="utf-8")
+
+    relative = {path for path, _ in guard.iter_text_files(tmp_path)}
+
+    assert "src/losslens/data/x.py" in relative
+    assert "docs/build/x.py" in relative
+    assert "data/x.py" not in relative
 
 
 def test_repository_has_no_ea_files_outside_mql4():
@@ -238,11 +332,21 @@ def test_repository_has_no_ea_files_outside_mql4():
 def test_ea_file_scanner_flags_bad_and_accepts_good(tmp_path):
     (tmp_path / "scratch").mkdir()
     (tmp_path / "scratch" / "x.mq4").write_text("// ea", encoding="utf-8")
+    (tmp_path / "docs" / "build").mkdir(parents=True)
+    (tmp_path / "docs" / "build" / "my_ea.ex4").write_text("// ea", encoding="utf-8")
+    (tmp_path / ".teams" / "teams" / "builder" / "work").mkdir(parents=True)
+    (tmp_path / ".teams" / "teams" / "builder" / "work" / "my_ea.ex4").write_text(
+        "// ea", encoding="utf-8"
+    )
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "my_ea.ex4").write_text("// ea", encoding="utf-8")
     (tmp_path / "mql4").mkdir()
     (tmp_path / "mql4" / "x.mq4").write_text("// ours", encoding="utf-8")
 
     problems = guard.check_ea_files(tmp_path)
 
-    assert len(problems) == 1
-    assert "scratch/x.mq4" in problems[0]
-    assert "EA files do not belong in this folder" in problems[0]
+    assert len(problems) == 3
+    assert any("scratch/x.mq4" in problem for problem in problems)
+    assert any("docs/build/my_ea.ex4" in problem for problem in problems)
+    assert any(".teams/teams/builder/work/my_ea.ex4" in problem for problem in problems)
+    assert all("EA files do not belong in this folder" in problem for problem in problems)
