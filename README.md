@@ -10,7 +10,7 @@ answers range queries.
 
 - Windows.
 - Python 3.11 or newer.
-- Node.js 18 or newer (for the pinned Dukascopy downloader).
+- Node.js 20 or newer (for the pinned Dukascopy downloader).
 - Google Chrome or Microsoft Edge, for the download site's browser check.
 
 ## Setup
