@@ -6,7 +6,7 @@ import ast
 import importlib.util
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -139,7 +139,7 @@ def check_imports(
     source: str,
     filename: str,
     allowed: frozenset[str],
-    subprocess_allowed: frozenset[str],
+    subprocess_allowed: Mapping[str, int],
 ) -> list[str]:
     problems: list[str] = []
     tree = ast.parse(source, filename=filename)
@@ -400,6 +400,72 @@ def check_ea_files(root: Path) -> list[str]:
         if relative.startswith("mql4/"):
             continue
         problems.append(f"{relative}: rule 2i: {EA_FILE_MESSAGE}")
+    return problems
+
+
+def check_code_files(
+    root: Path, suffixes: frozenset[str], allowed_prefixes: tuple[str, ...]
+) -> list[str]:
+    problems: list[str] = []
+    for relative, path in iter_repository_files(root, include_teams=True):
+        suffix = path.suffix.lower()
+        if suffix not in suffixes:
+            continue
+        allowed = suffix == ".py" and relative.startswith(allowed_prefixes)
+        if not allowed:
+            problems.append(
+                f"{relative}: rule 2k: code files are allowed only as .py under "
+                "src/ or tests/. Ask the Lead before adding code anywhere else."
+            )
+    return problems
+
+
+def check_subprocess_use(source: str, filename: str, allowed_count: int) -> list[str]:
+    problems: list[str] = []
+    tree = ast.parse(source, filename=filename)
+    run_count = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess" and alias.asname:
+                    problems.append(
+                        _problem(
+                            filename,
+                            node.lineno,
+                            "2l",
+                            "import subprocess as another name is not allowed",
+                        )
+                    )
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == "subprocess":
+            problems.append(
+                _problem(
+                    filename,
+                    node.lineno,
+                    "2l",
+                    "from subprocess import ... is not allowed",
+                )
+            )
+        elif (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "subprocess"
+        ):
+            if node.attr == "run":
+                run_count += 1
+            elif node.attr not in {"DEVNULL", "TimeoutExpired"}:
+                problems.append(
+                    _problem(
+                        filename,
+                        node.lineno,
+                        "2l",
+                        f"subprocess.{node.attr} is not allowed",
+                    )
+                )
+    if run_count != allowed_count:
+        problems.append(
+            f"{filename}: rule 2l: found {run_count} subprocess.run accesses, "
+            f"allowed {allowed_count}"
+        )
     return problems
 
 

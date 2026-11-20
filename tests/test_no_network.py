@@ -16,6 +16,15 @@ from losslens.cli import main
 from losslens.ticks.store import TickStore, make_entry
 
 ROOT = Path(__file__).resolve().parents[1]
+CODE_SUFFIXES = frozenset(
+    """
+    .py .pyw .pyi .pyc .pyd .ipynb
+    .js .mjs .cjs .ts .tsx .jsx
+    .ps1 .psm1 .bat .cmd .sh .vbs .wsf
+    .exe .dll .msi .scr .com .jar .lnk
+    """.split()
+)
+CODE_ALLOWED_PREFIXES = ("src/", "tests/")
 APPROVED_IMPORTS = frozenset(
     """
     __future__ abc argparse bisect collections collections.abc contextlib csv dataclasses
@@ -24,7 +33,7 @@ APPROVED_IMPORTS = frozenset(
     pyarrow pyarrow.compute pyarrow.csv pyarrow.parquet
     """.split()
 )
-SUBPROCESS_ALLOWED = frozenset({"src/losslens/ticks/dukascopy.py"})
+SUBPROCESS_ALLOWED = {"src/losslens/ticks/dukascopy.py": 1}
 
 
 def _src_files():
@@ -134,6 +143,64 @@ def test_web_address_scanner_flags_bad_and_accepts_good():
         assert bad and "src/x.py:1" in bad[0] and "rule 2c" in bad[0]
         assert scheme in bad[0]
     assert guard.check_web_addresses("# no address here\n", "src/x.py") == []
+
+
+def test_code_files_are_only_py_under_src_or_tests():
+    problems = guard.check_code_files(guard.repository_root(), CODE_SUFFIXES, CODE_ALLOWED_PREFIXES)
+    assert not problems, "Code-place rule 2k failed:\n" + "\n".join(problems)
+
+
+def test_code_file_scanner_flags_bad_and_accepts_good(tmp_path):
+    for relative in (
+        "scripts/upload.py",
+        "setup.py",
+        "src/losslens/x.pyw",
+        "tools/send.ps1",
+        "notes/run.bat",
+        ".teams/teams/builder/work/helper.py",
+    ):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n", encoding="utf-8")
+    for relative in ("src/losslens/x.py", "tests/x.py", "mql4/x.mq4"):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n", encoding="utf-8")
+
+    problems = guard.check_code_files(tmp_path, CODE_SUFFIXES, CODE_ALLOWED_PREFIXES)
+
+    assert len(problems) == 6
+    for relative in (
+        "scripts/upload.py",
+        "setup.py",
+        "src/losslens/x.pyw",
+        "tools/send.ps1",
+        "notes/run.bat",
+        ".teams/teams/builder/work/helper.py",
+    ):
+        assert any(problem.startswith(relative + ":") for problem in problems)
+    assert all("rule 2k" in problem for problem in problems)
+
+
+def test_subprocess_use_is_limited():
+    problems = []
+    for relative, source in _src_files():
+        allowed = SUBPROCESS_ALLOWED.get(relative, 0)
+        problems.extend(guard.check_subprocess_use(source, relative, allowed))
+    assert not problems, "Subprocess rule 2l failed:\n" + "\n".join(problems)
+
+
+def test_subprocess_scanner_flags_bad_and_accepts_good():
+    clean = "import subprocess\nsubprocess.run([])\nsubprocess.DEVNULL\nsubprocess.TimeoutExpired\n"
+    assert guard.check_subprocess_use(clean, "src/losslens/ticks/dukascopy.py", 1) == []
+    for source, allowed in (
+        ("import subprocess as sp\n", 0),
+        ("from subprocess import run\n", 0),
+        ("subprocess.Popen([])\n", 0),
+        ("subprocess.run([])\nsubprocess.run([])\n", 1),
+    ):
+        bad = guard.check_subprocess_use(source, "src/losslens/ticks/dukascopy.py", allowed)
+        assert bad and "rule 2l" in bad[0]
 
 
 def test_pyproject_dependencies_are_exact():
