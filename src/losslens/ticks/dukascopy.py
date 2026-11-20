@@ -6,13 +6,14 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.csv as pacsv
 
-from .store import empty_table, normalise
+from .store import empty_table, normalise, repository_root
 
 INSTRUMENTS = {
     "XAUUSD": "xauusd",
@@ -30,11 +31,15 @@ class DownloadError(RuntimeError):
     """A day's download failed; the day must not be recorded."""
 
 
+class SetupError(RuntimeError):
+    """The machine is not set up for downloading; retrying cannot help."""
+
+
 def instrument_for(symbol: str) -> str:
     try:
         return INSTRUMENTS[symbol.upper()]
     except KeyError:
-        raise DownloadError(
+        raise SetupError(
             f"no Dukascopy instrument mapping for {symbol!r}; "
             "use 'ticks import' for other tick files"
         ) from None
@@ -47,7 +52,32 @@ def find_browser() -> str | None:
     return None
 
 
-def download_day(symbol: str, day: date) -> Path | None:
+def cleanup_stale_temp_dirs(
+    temp_root: Path | str | None = None,
+    *,
+    max_age_seconds: float = 3600,
+    now: float | None = None,
+) -> list[Path]:
+    """Remove old losslens download folders; leave recent ones for running syncs."""
+    root = Path(temp_root) if temp_root is not None else Path(tempfile.gettempdir())
+    if not root.is_dir():
+        return []
+    cutoff = (time.time() if now is None else now) - max_age_seconds
+    removed: list[Path] = []
+    for path in root.glob("losslens-duka-*"):
+        if not path.is_dir():
+            continue
+        try:
+            if path.stat().st_mtime > cutoff:
+                continue
+            shutil.rmtree(path, ignore_errors=True)
+            removed.append(path)
+        except OSError:
+            continue
+    return removed
+
+
+def download_day(symbol: str, day: date, temp_root: Path | str | None = None) -> Path | None:
     """Download one UTC day; return the CSV path, or None when the day is empty.
 
     The caller owns the returned file's temporary folder and must delete it.
@@ -55,79 +85,86 @@ def download_day(symbol: str, day: date) -> Path | None:
     instrument = instrument_for(symbol)
     npx = shutil.which("npx")
     if not npx:
-        raise DownloadError("npx was not found on PATH; install Node.js and run npm install")
+        raise SetupError("npx was not found on PATH; install Node.js and run npm install")
 
-    local_package = Path.cwd() / "node_modules" / "dukascopy-node" / "package.json"
+    root = repository_root()
+    local_package = root / "node_modules" / "dukascopy-node" / "package.json"
     if not local_package.exists():
-        raise DownloadError(
-            "dukascopy-node is not installed; run 'npm install' from the repository root"
+        raise SetupError(
+            "dukascopy-node is not installed; run 'npm install' in the repository folder"
         )
 
     browser = find_browser()
     if not browser:
-        raise DownloadError(
+        raise SetupError(
             "Chrome or Edge was not found in its standard install folder; "
             "run 'npx dukascopy-node --install-browser' once"
         )
 
-    work_dir = Path(tempfile.mkdtemp(prefix="losslens-duka-"))
-    cmd = [
-        npx,
-        "dukascopy-node",
-        "-i",
-        instrument,
-        "-from",
-        day.isoformat(),
-        "-to",
-        (day + timedelta(days=1)).isoformat(),
-        "-t",
-        "tick",
-        "-f",
-        "csv",
-        "-v",
-        "-vu",
-        "units",
-        "-r",
-        "3",
-        "-rp",
-        "1500",
-        "-s",
-        "--chrome-path",
-        browser,
-        "-dir",
-        str(work_dir),
-    ]
-
-    env = os.environ.copy()
-    existing_options = env.get("NODE_OPTIONS", "").strip()
-    env["NODE_OPTIONS"] = (existing_options + " --use-system-ca").strip()
-
+    work_dir = Path(
+        tempfile.mkdtemp(
+            prefix="losslens-duka-",
+            dir=str(temp_root) if temp_root is not None else None,
+        )
+    )
+    keep = False
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            errors="replace",
-            env=env,
-            cwd=Path.cwd(),
-            timeout=600,
-        )
-    except Exception as exc:
-        shutil.rmtree(work_dir, ignore_errors=True)
-        raise DownloadError(f"could not start dukascopy-node: {exc}") from exc
+        cmd = [
+            npx,
+            "dukascopy-node",
+            "-i",
+            instrument,
+            "-from",
+            day.isoformat(),
+            "-to",
+            (day + timedelta(days=1)).isoformat(),
+            "-t",
+            "tick",
+            "-f",
+            "csv",
+            "-v",
+            "-vu",
+            "units",
+            "-r",
+            "3",
+            "-rp",
+            "1500",
+            "-s",
+            "--chrome-path",
+            browser,
+            "-dir",
+            str(work_dir),
+        ]
 
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip()
-        shutil.rmtree(work_dir, ignore_errors=True)
-        raise DownloadError(
-            f"dukascopy-node exited {proc.returncode}: {detail[-800:]}"
-        )
+        env = os.environ.copy()
+        existing_options = env.get("NODE_OPTIONS", "").strip()
+        env["NODE_OPTIONS"] = (existing_options + " --use-system-ca").strip()
 
-    files = sorted(work_dir.rglob("*.csv"))
-    if not files:
-        shutil.rmtree(work_dir, ignore_errors=True)
-        return None
-    return max(files, key=lambda p: p.stat().st_size)
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                env=env,
+                cwd=root,
+                timeout=600,
+            )
+        except Exception as exc:
+            raise DownloadError(f"could not start dukascopy-node: {exc}") from exc
+
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            raise DownloadError(f"dukascopy-node exited {proc.returncode}: {detail[-800:]}")
+
+        files = sorted(work_dir.rglob("*.csv"))
+        if not files:
+            return None
+        keep = True
+        return max(files, key=lambda path: path.stat().st_size)
+    finally:
+        if not keep:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 def read_dukascopy_csv(path: Path | None) -> pa.Table:

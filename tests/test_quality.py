@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -7,7 +7,7 @@ from losslens.cli import main
 from losslens.ticks import quality
 from losslens.ticks.store import TickStore, make_entry
 
-NOW = datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 11, 20, 12, 0, tzinfo=UTC)
 DAY = date(2026, 3, 3)
 BASE = 1772496000000
 
@@ -60,7 +60,7 @@ def test_verify_detects_out_of_order_ask_below_bid_and_a_400s_gap(tmp_path):
 
 def test_verify_cli_exits_one_when_a_day_is_out_of_order(tmp_path, monkeypatch):
     _make_problem_day(tmp_path)
-    monkeypatch.setattr("losslens.cli.DATA_ROOT", tmp_path)
+    monkeypatch.setattr("losslens.cli.resolve_data_root", lambda: tmp_path)
 
     assert main(["ticks", "verify", "--symbol", "XAUUSD"]) == 1
 
@@ -84,9 +84,132 @@ def test_verify_clean_day_exits_zero(tmp_path, monkeypatch):
         DAY, "complete", 2, BASE, BASE + 1000, "test", NOW
     )
     store.save_manifest(manifest)
-    monkeypatch.setattr("losslens.cli.DATA_ROOT", tmp_path)
+    monkeypatch.setattr("losslens.cli.resolve_data_root", lambda: tmp_path)
 
-    assert main(["ticks", "verify", "--symbol", "XAUUSD", "--from", "2026-03-03", "--to", "2026-03-03"]) == 0
+    report = quality.verify_symbol(store, DAY, DAY)
+    assert report["summary"]["integrity_problems"] == 0
+    assert report["summary"]["files_not_in_manifest"] == []
+    assert report["days"][0]["problems"] == []
+
+    assert (
+        main(
+            ["ticks", "verify", "--symbol", "XAUUSD", "--from", "2026-03-03", "--to", "2026-03-03"]
+        )
+        == 0
+    )
+
+
+def _one_row(store, ts=BASE):
+    store.write_day(
+        DAY,
+        pa.table(
+            {
+                "ts_ms": [ts],
+                "bid": [100.0],
+                "ask": [101.0],
+                "bid_vol": [0.0],
+                "ask_vol": [0.0],
+            }
+        ),
+    )
+
+
+def _entry(store, ticks, first, last, status="complete"):
+    manifest = store.load_manifest()
+    manifest["days"][DAY.isoformat()] = make_entry(DAY, status, ticks, first, last, "test", NOW)
+    store.save_manifest(manifest)
+
+
+def test_verify_reports_a_missing_day_file(tmp_path, monkeypatch):
+    store = TickStore(tmp_path, "XAUUSD")
+    _entry(store, 1, BASE, BASE)
+
+    report = quality.verify_symbol(store, DAY, DAY)
+
+    assert report["days"][0]["problems"] == ["file_missing"]
+    assert report["summary"]["integrity_problems"] == 1
+    monkeypatch.setattr("losslens.cli.resolve_data_root", lambda: tmp_path)
+    assert (
+        main(
+            ["ticks", "verify", "--symbol", "XAUUSD", "--from", "2026-03-03", "--to", "2026-03-03"]
+        )
+        == 1
+    )
+
+
+def test_verify_reports_an_unexpected_empty_day_file(tmp_path):
+    from losslens.ticks.store import SCHEMA
+
+    store = TickStore(tmp_path, "XAUUSD")
+    store.write_day(DAY, SCHEMA.empty_table())
+    _entry(store, 0, None, None, status="empty")
+
+    report = quality.verify_symbol(store, DAY, DAY)
+
+    assert report["days"][0]["problems"] == ["unexpected_file"]
+    assert report["summary"]["integrity_problems"] == 1
+
+
+def test_verify_reports_a_row_count_mismatch(tmp_path):
+    store = TickStore(tmp_path, "XAUUSD")
+    _one_row(store)
+    _entry(store, 2, BASE, BASE)
+
+    report = quality.verify_symbol(store, DAY, DAY)
+
+    assert report["days"][0]["problems"] == ["row_count_mismatch"]
+    assert report["summary"]["integrity_problems"] == 1
+
+
+def test_verify_reports_a_first_last_mismatch(tmp_path):
+    store = TickStore(tmp_path, "XAUUSD")
+    _one_row(store)
+    _entry(store, 1, BASE + 1, BASE + 2)
+
+    report = quality.verify_symbol(store, DAY, DAY)
+
+    assert report["days"][0]["problems"] == ["first_last_mismatch"]
+    assert report["summary"]["integrity_problems"] == 1
+
+
+def test_verify_reports_rows_outside_the_day(tmp_path):
+    store = TickStore(tmp_path, "XAUUSD")
+    store.write_day(
+        DAY,
+        pa.table(
+            {
+                "ts_ms": [BASE, BASE + 86_400_000],
+                "bid": [100.0, 100.0],
+                "ask": [101.0, 101.0],
+                "bid_vol": [0.0, 0.0],
+                "ask_vol": [0.0, 0.0],
+            }
+        ),
+    )
+    _entry(store, 2, BASE, BASE + 86_400_000)
+
+    report = quality.verify_symbol(store, DAY, DAY)
+
+    assert report["days"][0]["problems"] == ["rows_outside_day"]
+    assert report["days"][0]["rows_outside_day"] == 1
+    assert report["summary"]["integrity_problems"] == 1
+
+
+def test_verify_reports_a_file_without_a_manifest_entry(tmp_path, monkeypatch):
+    store = TickStore(tmp_path, "XAUUSD")
+    _one_row(store)
+
+    report = quality.verify_symbol(store, DAY, DAY)
+
+    assert report["summary"]["files_not_in_manifest"] == ["2026-03-03"]
+    assert report["summary"]["integrity_problems"] == 0
+    monkeypatch.setattr("losslens.cli.resolve_data_root", lambda: tmp_path)
+    assert (
+        main(
+            ["ticks", "verify", "--symbol", "XAUUSD", "--from", "2026-03-03", "--to", "2026-03-03"]
+        )
+        == 1
+    )
 
 
 def test_weekdays_without_data_are_listed(tmp_path):
@@ -104,9 +227,7 @@ def test_weekdays_without_data_are_listed(tmp_path):
         ),
     )
     manifest = store.load_manifest()
-    manifest["days"]["2026-03-03"] = make_entry(
-        DAY, "complete", 1, BASE, BASE, "test", NOW
-    )
+    manifest["days"]["2026-03-03"] = make_entry(DAY, "complete", 1, BASE, BASE, "test", NOW)
     store.save_manifest(manifest)
 
     report = quality.verify_symbol(store, date(2026, 3, 3), date(2026, 3, 8))

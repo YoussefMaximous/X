@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import os
 from bisect import bisect_left
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -18,7 +18,6 @@ from losslens import __version__
 
 DAY_MS = 86_400_000
 EPOCH_DATE = date(1970, 1, 1)
-DEFAULT_DATA_ROOT = Path("data")
 
 SCHEMA = pa.schema(
     [
@@ -34,7 +33,34 @@ DONE_STATUSES = ("complete", "empty", "imported")
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
+
+
+def find_repository_root(start: Path | None = None) -> Path | None:
+    """Walk up from the losslens package to the folder holding pyproject.toml."""
+    current = (Path(start) if start is not None else Path(__file__)).resolve()
+    if current.is_file():
+        current = current.parent
+    for candidate in (current, *current.parents):
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    return None
+
+
+def resolve_data_root() -> Path:
+    """The one data folder: LOSSLENS_DATA, else <repository root>/data."""
+    configured = os.environ.get("LOSSLENS_DATA")
+    if configured:
+        return Path(configured).expanduser()
+    root = find_repository_root()
+    if root is not None:
+        return root / "data"
+    return Path("data")
+
+
+def repository_root() -> Path:
+    """The repository root, or the current folder when the package is not in one."""
+    return find_repository_root() or Path.cwd()
 
 
 def empty_table() -> pa.Table:
@@ -48,8 +74,12 @@ def normalise(table: pa.Table) -> pa.Table:
         if name not in table.column_names:
             raise ValueError(f"missing required column: {name}")
 
-    bid_vol = table["bid_vol"] if "bid_vol" in table.column_names else pa.array([0] * n, pa.float32())
-    ask_vol = table["ask_vol"] if "ask_vol" in table.column_names else pa.array([0] * n, pa.float32())
+    bid_vol = (
+        table["bid_vol"] if "bid_vol" in table.column_names else pa.array([0] * n, pa.float32())
+    )
+    ask_vol = (
+        table["ask_vol"] if "ask_vol" in table.column_names else pa.array([0] * n, pa.float32())
+    )
 
     shaped = pa.table(
         {
@@ -71,8 +101,8 @@ def normalise(table: pa.Table) -> pa.Table:
 def classify_status(fetched_at: datetime, day: date, ticks: int) -> str:
     """Apply the manifest status rule for a freshly fetched UTC day."""
     if fetched_at.tzinfo is None:
-        fetched_at = fetched_at.replace(tzinfo=timezone.utc)
-    day_end = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) + timedelta(days=1)
+        fetched_at = fetched_at.replace(tzinfo=UTC)
+    day_end = datetime(day.year, day.month, day.day, tzinfo=UTC) + timedelta(days=1)
     if fetched_at >= day_end + timedelta(hours=6):
         return "complete" if ticks > 0 else "empty"
     return "partial"
@@ -94,7 +124,7 @@ def make_entry(
         "first_ts_ms": first_ts_ms,
         "last_ts_ms": last_ts_ms,
         "source": source,
-        "fetched_at_utc": fetched_at.astimezone(timezone.utc)
+        "fetched_at_utc": fetched_at.astimezone(UTC)
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
         "tool_version": __version__,
@@ -103,7 +133,7 @@ def make_entry(
 
 def iso_utc(ms: int) -> str:
     return (
-        (datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(milliseconds=int(ms)))
+        (datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=int(ms)))
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
@@ -127,8 +157,10 @@ def _row_bounds(table: pa.Table, from_ms: int, to_ms: int) -> tuple[int, int]:
 
 @dataclass
 class TickStore:
-    root: Path = DEFAULT_DATA_ROOT
+    root: Path = field(default_factory=resolve_data_root)
     symbol: str = "XAUUSD"
+    symbol_dir: Path = field(init=False)
+    manifest_path: Path = field(init=False)
 
     def __post_init__(self) -> None:
         self.root = Path(self.root)
@@ -142,7 +174,7 @@ class TickStore:
         if not self.manifest_path.exists():
             return {"symbol": self.symbol, "days": {}}
         with self.manifest_path.open("r", encoding="utf-8") as fh:
-            manifest = json.load(fh)
+            manifest = cast(dict[str, Any], json.load(fh))
         manifest.setdefault("symbol", self.symbol)
         manifest.setdefault("days", {})
         return manifest
@@ -197,12 +229,12 @@ class TickStore:
         return pa.concat_tables(parts)
 
     def manifest_days(self) -> dict[str, dict[str, Any]]:
-        return self.load_manifest().get("days", {})
+        return cast(dict[str, dict[str, Any]], self.load_manifest().get("days", {}))
 
 
 def read_ticks(symbol: str, from_ms: int, to_ms: int) -> pa.Table:
     """The one read function every later part uses."""
-    return TickStore(DEFAULT_DATA_ROOT, symbol).read_ticks(from_ms, to_ms)
+    return TickStore(symbol=symbol).read_ticks(from_ms, to_ms)
 
 
 def _atomic_write_text(path: Path, text: str) -> None:

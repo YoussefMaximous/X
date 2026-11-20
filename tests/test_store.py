@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pyarrow as pa
 
@@ -26,8 +26,8 @@ def test_day_file_is_written_atomically(tmp_path):
 
 def test_status_rule_from_fetch_time():
     day = date(2026, 3, 3)
-    before_cutoff = datetime(2026, 3, 4, 5, 59, tzinfo=timezone.utc)
-    after_cutoff = datetime(2026, 3, 4, 6, 0, tzinfo=timezone.utc)
+    before_cutoff = datetime(2026, 3, 4, 5, 59, tzinfo=UTC)
+    after_cutoff = datetime(2026, 3, 4, 6, 0, tzinfo=UTC)
     assert classify_status(before_cutoff, day, 10) == "partial"
     assert classify_status(after_cutoff, day, 10) == "complete"
     assert classify_status(after_cutoff, day, 0) == "empty"

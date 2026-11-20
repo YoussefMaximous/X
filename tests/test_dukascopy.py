@@ -1,4 +1,5 @@
 import pyarrow as pa
+
 from losslens.ticks import dukascopy
 from losslens.ticks.store import SCHEMA
 
@@ -33,7 +34,7 @@ def test_instrument_mapping_is_explicit():
     assert dukascopy.instrument_for("xauusd") == "xauusd"
     try:
         dukascopy.instrument_for("EURUSD")
-    except dukascopy.DownloadError:
+    except dukascopy.SetupError:
         pass
     else:
         raise AssertionError("expected an explicit mapping error")
@@ -42,8 +43,7 @@ def test_instrument_mapping_is_explicit():
 def test_table_values_survive_csv_round_trip(tmp_path):
     csv = tmp_path / "sample.csv"
     csv.write_text(
-        "timestamp,askPrice,bidPrice,askVolume,bidVolume\n"
-        "1772496001086,5346.605,5345.755,120,90\n",
+        "timestamp,askPrice,bidPrice,askVolume,bidVolume\n1772496001086,5346.605,5345.755,120,90\n",
         encoding="utf-8",
     )
     table = dukascopy.read_dukascopy_csv(csv)

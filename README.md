@@ -15,15 +15,15 @@ answers range queries.
 
 ## Setup
 
-Run these once, from the repository root:
+Run these once in the repository folder:
 
 ```text
 python -m pip install -e .
 npm install
 ```
 
-`npm install` installs `dukascopy-node` at exactly 1.51.1. The commands below
-also assume you run them from the repository root.
+`npm install` installs `dukascopy-node` at exactly 1.51.1. The commands below can
+be run from any folder; they always use the same store.
 
 ## Commands
 
@@ -38,9 +38,12 @@ python -m losslens ticks sync --symbol XAUUSD --from 2026-03-03 --to 2026-03-04
 one UTC day at a time, oldest first. Finished days (`complete`, `empty`,
 `imported`) are skipped, so running it again is cheap. `--force` re-downloads
 everything in the range except imported days. A failed day is retried, then left
-unrecorded and reported at the end (exit code 1); it is never saved as empty.
-Stopping with Ctrl+C is safe: every file is written atomically, and the next run
-continues with whatever is not finished.
+unrecorded and reported at the end (exit code 1); it is never saved as empty. A
+setup problem (no Dukascopy mapping, no `npx`, no local `dukascopy-node`, no
+Chrome or Edge) stops at once with one `setup problem:` line and exit code 2.
+Stopping with Ctrl+C is safe: every file is written atomically, temporary
+download folders are removed, and the next run continues with whatever is not
+finished.
 
 ### Check the store
 
@@ -51,9 +54,10 @@ python -m losslens ticks verify --symbol XAUUSD --from 2026-03-01 --to 2026-03-3
 
 Per day it prints status, tick count, largest gap, out-of-order rows, rows where
 ask is below bid, and spread median / 99th percentile / maximum. The summary
-lists weekdays with no data and the largest bid jump between two days. The full
-report is written to `data/reports/quality-<SYMBOL>.json`. The command exits 1 if
-any day has out-of-order rows.
+lists integrity problems and files with no manifest entry, weekdays with no data,
+and the largest bid jump between two days. The full report is written to
+`data/reports/quality-<SYMBOL>.json`. The command exits 1 if any day has
+out-of-order rows, any manifest/file mismatch, or any file with no manifest entry.
 
 ### Read a range
 
@@ -93,6 +97,10 @@ data/ticks/<SYMBOL>/manifest.json
 data/reports/quality-<SYMBOL>.json
 ```
 
+The data folder is `LOSSLENS_DATA` when that environment variable is set;
+otherwise it is `data` under the repository folder that holds `pyproject.toml`.
+The same rule is used from every folder and by `read_ticks()`.
+
 Each Parquet file is one UTC day, zstd-compressed, with columns `ts_ms` (int64,
 UTC epoch milliseconds), `bid`, `ask` (float64), `bid_vol`, `ask_vol` (float32),
 sorted by `ts_ms`. `data/` is git-ignored: tick data never goes into git.
@@ -109,6 +117,9 @@ Manifest statuses:
 
 ```text
 python -m pytest -q
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
 ```
 
 The tests use only local fixtures and make no network calls.

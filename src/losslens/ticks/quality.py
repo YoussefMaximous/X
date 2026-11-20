@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
 import pyarrow.compute as pc
 
-from .store import TickStore, iso_utc, utc_now
+from .store import DAY_MS, EPOCH_DATE, TickStore, iso_utc, utc_now
 
 GAP_SECONDS = 300
 
@@ -50,7 +50,7 @@ def verify_symbol(
 
     largest_jump = None
     with_data = [item for item in days if item["ticks"] > 0]
-    for previous, current in zip(with_data, with_data[1:]):
+    for previous, current in zip(with_data, with_data[1:], strict=False):
         change = current["first_bid"] - previous["last_bid"]
         if largest_jump is None or abs(change) > abs(largest_jump["change"]):
             largest_jump = {
@@ -61,12 +61,22 @@ def verify_symbol(
 
     total_ticks = sum(int(entry.get("ticks", 0)) for _, entry in selected)
     out_of_order_rows = sum(item["out_of_order_rows"] for item in days)
+    integrity_problems = sum(len(item["problems"]) for item in days)
+
+    manifest_dates = {item["date"] for item in days}
+    files_not_in_manifest: list[str] = []
+    for path in store.symbol_dir.rglob("*.parquet"):
+        try:
+            file_day = date.fromisoformat(path.stem)
+        except ValueError:
+            continue
+        if from_day <= file_day <= to_day and file_day.isoformat() not in manifest_dates:
+            files_not_in_manifest.append(file_day.isoformat())
+    files_not_in_manifest = sorted(set(files_not_in_manifest))
 
     report = {
         "symbol": store.symbol,
-        "generated_at_utc": utc_now()
-        .isoformat(timespec="seconds")
-        .replace("+00:00", "Z"),
+        "generated_at_utc": utc_now().isoformat(timespec="seconds").replace("+00:00", "Z"),
         "range": {"from": from_day.isoformat(), "to": to_day.isoformat()},
         "days": days,
         "summary": {
@@ -74,6 +84,8 @@ def verify_symbol(
             "total_ticks": total_ticks,
             "missing_weekdays": missing_weekdays,
             "out_of_order_rows": out_of_order_rows,
+            "integrity_problems": integrity_problems,
+            "files_not_in_manifest": files_not_in_manifest,
             "largest_bid_change_between_days": largest_jump,
         },
     }
@@ -83,11 +95,25 @@ def verify_symbol(
 
 
 def _day_report(store: TickStore, day: date, entry: dict[str, Any]) -> dict[str, Any]:
+    entry_ticks = int(entry.get("ticks", 0))
+    exists = store.day_path(day).exists()
+    problems: list[str] = []
+    if entry.get("status") == "empty" and exists:
+        problems.append("unexpected_file")
+    if entry_ticks > 0 and not exists:
+        problems.append("file_missing")
+
     table = store.read_day(day)
+    n = 0 if table is None else table.num_rows
+    if exists and n != entry_ticks:
+        problems.append("row_count_mismatch")
+
+    day_start = (day - EPOCH_DATE).days * DAY_MS
+    day_end = day_start + DAY_MS
     base: dict[str, Any] = {
         "date": day.isoformat(),
         "status": entry.get("status"),
-        "manifest_ticks": int(entry.get("ticks", 0)),
+        "manifest_ticks": entry_ticks,
         "ticks": 0,
         "first_ts_ms": None,
         "last_ts_ms": None,
@@ -103,6 +129,8 @@ def _day_report(store: TickStore, day: date, entry: dict[str, Any]) -> dict[str,
         "spread_max": None,
         "first_bid": None,
         "last_bid": None,
+        "rows_outside_day": 0,
+        "problems": problems,
     }
     if table is None or table.num_rows == 0:
         return base
@@ -113,13 +141,22 @@ def _day_report(store: TickStore, day: date, entry: dict[str, Any]) -> dict[str,
     ask = table["ask"]
     spread = pc.subtract(ask, bid)
 
+    first_ms = int(ts[0].as_py())
+    last_ms = int(ts[-1].as_py())
     base["ticks"] = n
-    base["first_ts_ms"] = int(ts[0].as_py())
-    base["last_ts_ms"] = int(ts[-1].as_py())
-    base["first_utc"] = iso_utc(base["first_ts_ms"])
-    base["last_utc"] = iso_utc(base["last_ts_ms"])
+    base["first_ts_ms"] = first_ms
+    base["last_ts_ms"] = last_ms
+    base["first_utc"] = iso_utc(first_ms)
+    base["last_utc"] = iso_utc(last_ms)
     base["first_bid"] = float(bid[0].as_py())
     base["last_bid"] = float(bid[-1].as_py())
+    if entry.get("first_ts_ms") != first_ms or entry.get("last_ts_ms") != last_ms:
+        problems.append("first_last_mismatch")
+
+    outside = pc.or_(pc.less(ts, day_start), pc.greater_equal(ts, day_end))
+    base["rows_outside_day"] = int(pc.sum(outside).as_py())
+    if base["rows_outside_day"] > 0:
+        problems.append("rows_outside_day")
 
     if n > 1:
         diffs = pc.subtract(ts.slice(1), ts.slice(0, n - 1))
@@ -136,7 +173,7 @@ def _day_report(store: TickStore, day: date, entry: dict[str, Any]) -> dict[str,
                 "to_utc": iso_utc(end),
                 "seconds": (int(end) - int(start)) / 1000.0,
             }
-            for start, end in zip(starts, ends)
+            for start, end in zip(starts, ends, strict=True)
         ]
 
     base["ask_below_bid_rows"] = int(pc.sum(pc.less(ask, bid)).as_py())

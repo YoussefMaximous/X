@@ -7,9 +7,11 @@ import shutil
 import sys
 import time
 from collections import Counter
-from datetime import date, datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta
+from functools import partial
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from . import __version__
 from .ticks import dukascopy, importer, quality
@@ -19,11 +21,15 @@ from .ticks.store import (
     classify_status,
     make_entry,
     read_ticks,
+    resolve_data_root,
     utc_now,
 )
 
-DATA_ROOT = Path("data")
-EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def _store(symbol: str) -> TickStore:
+    return TickStore(resolve_data_root(), symbol)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,9 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     import_cmd.add_argument("--ask-col", required=True)
     import_cmd.add_argument("--bid-vol-col")
     import_cmd.add_argument("--ask-vol-col")
-    import_cmd.add_argument(
-        "--ts-format", required=True, choices=["epoch_ms", "epoch_s", "iso"]
-    )
+    import_cmd.add_argument("--ts-format", required=True, choices=["epoch_ms", "epoch_s", "iso"])
     import_cmd.add_argument(
         "--utc-offset-minutes",
         type=int,
@@ -103,8 +107,12 @@ def cmd_ticks_sync(args: argparse.Namespace) -> int:
         print("--from must be before --to", file=sys.stderr)
         return 2
 
-    store = TickStore(DATA_ROOT, symbol)
-    result = sync_days(store, symbol, start, end, force=args.force)
+    store = _store(symbol)
+    try:
+        result = sync_days(store, symbol, start, end, force=args.force)
+    except dukascopy.SetupError as exc:
+        print(f"setup problem: {exc}", file=sys.stderr)
+        return 2
     if result["failures"]:
         print("Failed days: " + ", ".join(result["failures"]))
         return 1
@@ -122,9 +130,17 @@ def sync_days(
     retries: int = 3,
     retry_pause: float = 5.0,
     printer: Callable[..., None] = print,
+    temp_root: Path | str | None = None,
 ) -> dict[str, Any]:
     """Sync [start, end) one UTC day at a time; never record a failed day."""
-    download = download or dukascopy.download_day
+    dukascopy.cleanup_stale_temp_dirs(temp_root)
+
+    if download is None:
+        download_fn: Callable[[str, date], Path | None] = partial(
+            dukascopy.download_day, temp_root=temp_root
+        )
+    else:
+        download_fn = download
     now_fn = now_fn or utc_now
     manifest = store.load_manifest()
     counts: Counter[str] = Counter()
@@ -149,67 +165,67 @@ def sync_days(
 
         day_started = time.perf_counter()
         csv_path: Path | None = None
-        error: Exception | None = None
-
-        for attempt in range(retries + 1):
-            try:
-                csv_path = download(symbol, day)
-                error = None
-                break
-            except Exception as exc:  # a failed day is retried, then left unrecorded
-                error = exc
-                if attempt < retries:
-                    time.sleep(retry_pause)
-
-        if error is not None:
-            failures.append(iso)
-            counts["failed"] += 1
-            printer(
-                f"{iso}  {'failed':<9} {0:>9}  {time.perf_counter() - day_started:7.2f}s  "
-                f"{str(error)[:300]}",
-                flush=True,
-            )
-            day += timedelta(days=1)
-            continue
-
         try:
-            table = dukascopy.read_dukascopy_csv(csv_path)
-            ticks = table.num_rows
-            fetched_at = now_fn()
-            status = classify_status(fetched_at, day, ticks)
+            error: Exception | None = None
+            for attempt in range(retries + 1):
+                try:
+                    csv_path = download_fn(symbol, day)
+                    error = None
+                    break
+                except dukascopy.SetupError:
+                    raise
+                except Exception as exc:  # a failed day is retried, then left unrecorded
+                    error = exc
+                    if attempt < retries:
+                        time.sleep(retry_pause)
 
-            if ticks:
-                store.write_day(day, table)
-                first_ts = int(table["ts_ms"][0].as_py())
-                last_ts = int(table["ts_ms"][-1].as_py())
+            if error is not None:
+                failures.append(iso)
+                counts["failed"] += 1
+                printer(
+                    f"{iso}  {'failed':<9} {0:>9}  "
+                    f"{time.perf_counter() - day_started:7.2f}s  {str(error)[:300]}",
+                    flush=True,
+                )
             else:
-                store.delete_day(day)
-                first_ts = None
-                last_ts = None
+                table = dukascopy.read_dukascopy_csv(csv_path)
+                ticks = table.num_rows
+                fetched_at = now_fn()
+                status = classify_status(fetched_at, day, ticks)
 
-            entry = make_entry(
-                day,
-                status,
-                ticks,
-                first_ts,
-                last_ts,
-                f"dukascopy:{dukascopy.instrument_for(symbol)}",
-                fetched_at,
-            )
-            manifest.setdefault("days", {})[iso] = entry
-            store.save_manifest(manifest)
-            counts[status] += 1
-            printer(
-                f"{iso}  {status:<9} {ticks:>9}  "
-                f"{time.perf_counter() - day_started:7.2f}s",
-                flush=True,
-            )
+                if ticks:
+                    store.write_day(day, table)
+                    first_ts = int(table["ts_ms"][0].as_py())
+                    last_ts = int(table["ts_ms"][-1].as_py())
+                else:
+                    store.delete_day(day)
+                    first_ts = None
+                    last_ts = None
+
+                entry = make_entry(
+                    day,
+                    status,
+                    ticks,
+                    first_ts,
+                    last_ts,
+                    f"dukascopy:{dukascopy.instrument_for(symbol)}",
+                    fetched_at,
+                )
+                manifest.setdefault("days", {})[iso] = entry
+                store.save_manifest(manifest)
+                counts[status] += 1
+                printer(
+                    f"{iso}  {status:<9} {ticks:>9}  {time.perf_counter() - day_started:7.2f}s",
+                    flush=True,
+                )
+        except dukascopy.SetupError:
+            raise
         except Exception as exc:
             failures.append(iso)
             counts["failed"] += 1
             printer(
-                f"{iso}  {'failed':<9} {0:>9}  {time.perf_counter() - day_started:7.2f}s  "
-                f"{str(exc)[:300]}",
+                f"{iso}  {'failed':<9} {0:>9}  "
+                f"{time.perf_counter() - day_started:7.2f}s  {str(exc)[:300]}",
                 flush=True,
             )
         finally:
@@ -235,10 +251,16 @@ def sync_days(
 
 def cmd_ticks_verify(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
-    store = TickStore(DATA_ROOT, symbol)
+    store = _store(symbol)
     report = quality.verify_symbol(store, args.start, args.end)
     _print_quality(report)
-    return 1 if report["summary"]["out_of_order_rows"] else 0
+    summary = report["summary"]
+    bad = (
+        summary["out_of_order_rows"]
+        or summary["integrity_problems"]
+        or summary["files_not_in_manifest"]
+    )
+    return 1 if bad else 0
 
 
 def _print_quality(report: dict[str, Any]) -> None:
@@ -256,12 +278,21 @@ def _print_quality(report: dict[str, Any]) -> None:
         )
 
     summary = report["summary"]
+    problems = [(item["date"], item["problems"]) for item in report["days"] if item["problems"]]
+    for day, day_problems in problems:
+        print(f"  {day}: {', '.join(day_problems)}")
     print(
         "Statuses: "
         + ", ".join(f"{key}={value}" for key, value in sorted(summary["days_per_status"].items()))
     )
     print(f"Total ticks: {summary['total_ticks']}")
     print(f"Out-of-order rows: {summary['out_of_order_rows']}")
+    print(f"Integrity problems: {summary['integrity_problems']}")
+    files_not_in_manifest = summary["files_not_in_manifest"]
+    print(
+        "Files not in manifest: "
+        + (", ".join(files_not_in_manifest) if files_not_in_manifest else "none")
+    )
     missing = summary["missing_weekdays"]
     print("Weekdays with no data: " + (", ".join(missing) if missing else "none"))
     jump = summary["largest_bid_change_between_days"]
@@ -295,7 +326,7 @@ def cmd_ticks_query(args: argparse.Namespace) -> int:
 
 def cmd_ticks_import(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
-    store = TickStore(DATA_ROOT, symbol)
+    store = _store(symbol)
     try:
         result = importer.import_csv(
             store,
@@ -320,7 +351,7 @@ def cmd_ticks_import(args: argparse.Namespace) -> int:
 
 def cmd_ticks_status(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
-    store = TickStore(DATA_ROOT, symbol)
+    store = _store(symbol)
     manifest = store.load_manifest()
     entries = manifest.get("days", {})
     if not entries:
@@ -331,25 +362,18 @@ def cmd_ticks_status(args: argparse.Namespace) -> int:
     counts = Counter(entry.get("status", "unknown") for entry in entries.values())
     total_ticks = sum(int(entry.get("ticks", 0)) for entry in entries.values())
     disk_size = sum(
-        path.stat().st_size
-        for path in store.symbol_dir.rglob("*.parquet")
-        if path.is_file()
+        path.stat().st_size for path in store.symbol_dir.rglob("*.parquet") if path.is_file()
     )
     print(f"symbol: {symbol}")
     print(f"range: {dates[0]} .. {dates[-1]}")
-    print(
-        "days: "
-        + ", ".join(f"{status}={count}" for status, count in sorted(counts.items()))
-    )
+    print("days: " + ", ".join(f"{status}={count}" for status, count in sorted(counts.items())))
     print(f"total ticks: {total_ticks}")
     print(f"disk size: {disk_size / (1024 * 1024):.2f} MB")
     return 0
 
 
 def _row_text(table: Any, index: int) -> str:
-    return ", ".join(
-        f"{name}={table[name][index].as_py()}" for name in table.column_names
-    )
+    return ", ".join(f"{name}={table[name][index].as_py()}" for name in table.column_names)
 
 
 def _number(value: float | None) -> str:
@@ -369,5 +393,5 @@ def _iso_to_ms(text: str) -> int:
     except ValueError as exc:
         raise SystemExit(f"invalid ISO time: {text!r}") from exc
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return (dt.astimezone(timezone.utc) - EPOCH) // timedelta(milliseconds=1)
+        dt = dt.replace(tzinfo=UTC)
+    return (dt.astimezone(UTC) - EPOCH) // timedelta(milliseconds=1)

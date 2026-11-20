@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +12,7 @@ import pyarrow.csv as pacsv
 
 from .store import DAY_MS, TickStore, day_from_ms, make_entry, normalise, utc_now
 
-EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class CsvImportError(ValueError):
@@ -85,9 +85,7 @@ def import_csv(
     for day_number in day_numbers:
         day_start = day_number * DAY_MS
         day_end = day_start + DAY_MS
-        mask = pc.and_(
-            pc.greater_equal(ts_values, day_start), pc.less(ts_values, day_end)
-        )
+        mask = pc.and_(pc.greater_equal(ts_values, day_start), pc.less(ts_values, day_end))
         part = shaped.filter(mask)
         if part.num_rows == 0:
             continue
@@ -114,9 +112,7 @@ def import_csv(
     }
 
 
-def _to_epoch_ms(
-    column: pa.ChunkedArray, ts_format: str, utc_offset_minutes: int
-) -> pa.Array:
+def _to_epoch_ms(column: pa.ChunkedArray, ts_format: str, utc_offset_minutes: int) -> pa.Array:
     offset_ms = int(utc_offset_minutes) * 60_000
 
     if ts_format == "iso":
@@ -133,9 +129,9 @@ def _to_epoch_ms(
                     raise CsvImportError("timestamp column contains an empty value")
                 dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc) - timedelta(milliseconds=offset_ms)
+                dt = dt.replace(tzinfo=UTC) - timedelta(milliseconds=offset_ms)
             else:
-                dt = dt.astimezone(timezone.utc)
+                dt = dt.astimezone(UTC)
             out.append((dt - EPOCH) // timedelta(milliseconds=1))
         return pa.array(out, pa.int64())
 

@@ -38,9 +38,7 @@ def test_import_iso_with_utc_offset_splits_at_midnight(tmp_path):
 def test_import_epoch_seconds_with_offset(tmp_path):
     csv = tmp_path / "seconds.csv"
     csv.write_text(
-        "ts,bid,ask,bv,av\n"
-        "1772496000,100.0,101.0,1,2\n"
-        "1772496001,100.5,101.5,1,2\n",
+        "ts,bid,ask,bv,av\n1772496000,100.0,101.0,1,2\n1772496001,100.5,101.5,1,2\n",
         encoding="utf-8",
     )
     store = TickStore(tmp_path, "XAUUSD")

@@ -1,10 +1,13 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
+import pytest
+
 from losslens.cli import sync_days
+from losslens.ticks import dukascopy
 from losslens.ticks.store import TickStore, make_entry
 
-NOW = datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 11, 20, 12, 0, tzinfo=UTC)
 DAY = date(2026, 3, 3)
 
 
@@ -38,12 +41,60 @@ def test_failed_download_is_not_recorded(tmp_path):
     assert not store.day_path(DAY).exists()
 
 
+def test_setup_error_is_not_retried(tmp_path):
+    store = _store(tmp_path)
+    calls = []
+
+    def setup_failure(symbol, day):
+        calls.append(day)
+        raise dukascopy.SetupError("dukascopy-node is not installed")
+
+    with pytest.raises(dukascopy.SetupError):
+        sync_days(
+            store,
+            "XAUUSD",
+            DAY,
+            date(2026, 3, 6),
+            download=setup_failure,
+            now_fn=lambda: NOW,
+            retries=3,
+            retry_pause=0,
+            printer=_quiet,
+        )
+
+    assert calls == [DAY]
+    assert store.load_manifest()["days"] == {}
+
+
+def test_ordinary_error_is_still_retried(tmp_path):
+    store = _store(tmp_path)
+    calls = []
+
+    def ordinary_failure(symbol, day):
+        calls.append(day)
+        raise dukascopy.DownloadError("network down")
+
+    result = sync_days(
+        store,
+        "XAUUSD",
+        DAY,
+        date(2026, 3, 4),
+        download=ordinary_failure,
+        now_fn=lambda: NOW,
+        retries=2,
+        retry_pause=0,
+        printer=_quiet,
+    )
+
+    assert len(calls) == 3
+    assert result["failures"] == ["2026-03-03"]
+    assert store.load_manifest()["days"] == {}
+
+
 def test_finished_days_are_skipped_unless_forced(tmp_path):
     store = _store(tmp_path)
     manifest = store.load_manifest()
-    manifest["days"]["2026-03-03"] = make_entry(
-        DAY, "complete", 5, 1, 2, "dukascopy:xauusd", NOW
-    )
+    manifest["days"]["2026-03-03"] = make_entry(DAY, "complete", 5, 1, 2, "dukascopy:xauusd", NOW)
     store.save_manifest(manifest)
     calls = []
 
@@ -87,9 +138,7 @@ def test_finished_days_are_skipped_unless_forced(tmp_path):
 def test_imported_days_are_never_downloaded_even_with_force(tmp_path):
     store = _store(tmp_path)
     manifest = store.load_manifest()
-    manifest["days"]["2026-03-03"] = make_entry(
-        DAY, "imported", 7, 1, 2, "import:mine.csv", NOW
-    )
+    manifest["days"]["2026-03-03"] = make_entry(DAY, "imported", 7, 1, 2, "import:mine.csv", NOW)
     store.save_manifest(manifest)
 
     def boom(symbol, day):
@@ -148,7 +197,7 @@ def test_partial_day_is_not_marked_complete(tmp_path):
         today,
         date(2026, 11, 21),
         download=nothing,
-        now_fn=lambda: datetime(2026, 11, 20, 12, 0, tzinfo=timezone.utc),
+        now_fn=lambda: datetime(2026, 11, 20, 12, 0, tzinfo=UTC),
         retries=0,
         printer=_quiet,
     )
