@@ -68,5 +68,6 @@ a real run; it refuses to write an invented FXT header and says to use
 
 The copy's `terminal.exe` started and opened a visible window titled
 "Open an Account". The hard rules say type nothing and click nothing. The run
-was left to time out. A later clean start stopped at the same window. Therefore
-no tester result, probe file, report or run-time FXT exists to measure.
+was left to time out. A later clean copy also failed to reach the tester; its
+windows were not enumerated. Therefore no tester result, probe file, report or
+run-time FXT exists to measure.
