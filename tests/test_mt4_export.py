@@ -79,3 +79,43 @@ def test_hst_bytes_for_five_ticks_across_two_minutes():
     assert export.hst_bytes("XAUUSD", bars, 2) == header + records
     assert len(header) == export.HST_HEADER_SIZE
     assert len(records) == 2 * export.HST_RECORD_SIZE
+
+
+def test_fxt_bytes_for_five_ticks_across_two_minutes():
+    rows = [
+        (_ms("2026-03-03T10:00:00.100Z"), 2650.124),
+        (_ms("2026-03-03T10:00:00.200Z"), 2650.125),
+        (_ms("2026-03-03T10:00:00.300Z"), 2650.130),
+        (_ms("2026-03-03T10:01:00.100Z"), 2650.120),
+        (_ms("2026-03-03T10:01:00.200Z"), 2650.110),
+    ]
+    template = bytes([0xAA]) * export.FXT_HEADER_SIZE
+
+    result = export.build_fxt_for_table(_table(rows), 30, template, 2)
+
+    first_bar = export.server_seconds(_ms("2026-03-03T10:00:00Z") // 1000)
+    last_bar = export.server_seconds(_ms("2026-03-03T10:01:00Z") // 1000)
+    first_tick = export.server_seconds(_ms("2026-03-03T10:00:00Z") // 1000)
+    last_tick = export.server_seconds(_ms("2026-03-03T10:01:00Z") // 1000)
+    expected_header = bytearray(template)
+    struct.pack_into("<i", expected_header, 216, 2)
+    struct.pack_into("<i", expected_header, 220, first_bar)
+    struct.pack_into("<i", expected_header, 224, last_bar)
+    struct.pack_into("<i", expected_header, 252, 30)
+    struct.pack_into("<i", expected_header, 472, first_tick)
+    struct.pack_into("<i", expected_header, 476, last_tick + 1)
+    expected_records = [
+        (first_bar, 2650.12, 2650.12, 2650.12, 2650.12, 1, first_tick, 0),
+        (first_bar, 2650.12, 2650.13, 2650.12, 2650.13, 2, first_tick, 0),
+        (first_bar, 2650.12, 2650.13, 2650.12, 2650.13, 3, first_tick, 0),
+        (last_bar, 2650.12, 2650.12, 2650.12, 2650.12, 1, last_tick, 0),
+        (last_bar, 2650.12, 2650.12, 2650.11, 2650.11, 2, last_tick, 0),
+    ]
+    expected = bytes(expected_header) + b"".join(
+        struct.pack(export.FXT_RECORD_FORMAT, *record) for record in expected_records
+    )
+
+    assert result == expected
+    assert result[216:220] == struct.pack("<i", 2)
+    assert result[0:216] == template[0:216]
+    assert len(result) == export.FXT_HEADER_SIZE + 5 * export.FXT_RECORD_SIZE

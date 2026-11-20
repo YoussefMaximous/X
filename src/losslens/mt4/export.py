@@ -19,6 +19,40 @@ HST_VERSION = 401
 HST_HEADER_SIZE = 148
 HST_RECORD_FORMAT = "<qddddqiq"
 HST_RECORD_SIZE = 60
+FXT_HEADER_SIZE = 728
+FXT_RECORD_FORMAT = "<qddddqii"
+FXT_RECORD_SIZE = 56
+
+# The 728-byte header MT4 build 1492 wrote for XAUUSD M1, with the six fields
+# below patched per export. Everything else is left as MT4 wrote it.
+FXT_HEADER_HEX = """
+95010000436f7079726967687420323030302d323032362c204d65746151756f
+746573204c74642e000000000000000000000000000000000000000000000000
+0000000049434d61726b65747353432d44656d6f303400000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+000000005841555553440000000000000100000000000000280500001058a669
+c475a769000000002a419e12e42937405841550000000000000000001e000000
+02000000000000007b14ae47e17a843f01000000102700000100000000000000
+0100000000000000000000000000594000000000000000000000000000000000
+00000000010000000000000000000000e5d022dbf94e48c09cc420b072884040
+0300000088130000010000000000000032000000000000000000000000005940
+00000000000000000000000000004940000000000000f03f5841550000000000
+00000000000000000000000000001c4000000000000000000100000000000000
+0000000000000000000000000000000000000000000000008024a6690076a769
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000
+"""
+FXT_HEADER_TEMPLATE = bytes.fromhex(FXT_HEADER_HEX)
+if len(FXT_HEADER_TEMPLATE) != FXT_HEADER_SIZE:
+    raise RuntimeError("measured FXT header template is not 728 bytes")
 
 
 class ExportError(RuntimeError):
@@ -130,6 +164,83 @@ def hst_bytes(
     return header + records
 
 
+def _fxt_parts(
+    table: pa.Table, digits: int, spread: int, header_template: bytes
+) -> tuple[int, int, int, int, int, bytearray]:
+    if len(header_template) != FXT_HEADER_SIZE:
+        raise ExportError("FXT header template is not 728 bytes")
+    records = bytearray()
+    current_minute: int | None = None
+    first_bar: int | None = None
+    last_bar: int | None = None
+    first_tick: int | None = None
+    last_tick: int | None = None
+    bars = 0
+    open_price = high = low = close = 0.0
+    volume = 0
+    timestamps = table["ts_ms"].to_pylist()
+    bids = table["bid"].to_pylist()
+    for ts_ms, raw_bid in zip(timestamps, bids, strict=True):
+        bid = round_price(float(raw_bid), digits)
+        server = server_seconds(int(ts_ms) // 1000)
+        minute = server - (server % 60)
+        if current_minute is None:
+            current_minute = minute
+            first_bar = minute
+            bars = 1
+            open_price = high = low = close = bid
+            volume = 1
+        elif minute == current_minute:
+            high = max(high, bid)
+            low = min(low, bid)
+            close = bid
+            volume += 1
+        else:
+            current_minute = minute
+            bars += 1
+            open_price = high = low = close = bid
+            volume = 1
+        if first_tick is None:
+            first_tick = server
+        last_tick = server
+        records.extend(
+            struct.pack(
+                FXT_RECORD_FORMAT,
+                current_minute,
+                open_price,
+                high,
+                low,
+                close,
+                volume,
+                server,
+                0,
+            )
+        )
+    if first_bar is None or last_tick is None or current_minute is None or first_tick is None:
+        raise ExportError("cannot write an FXT with no ticks")
+    last_bar = current_minute
+    return bars, first_bar, last_bar, first_tick, last_tick, records
+
+
+def build_fxt_for_table(
+    table: pa.Table,
+    spread: int,
+    header_template: bytes = FXT_HEADER_TEMPLATE,
+    digits: int = 2,
+) -> bytes:
+    bars, first_bar, last_bar, first_tick, last_tick, records = _fxt_parts(
+        table, digits, spread, header_template
+    )
+    header = bytearray(header_template)
+    struct.pack_into("<i", header, 216, bars)
+    struct.pack_into("<i", header, 220, first_bar)
+    struct.pack_into("<i", header, 224, last_bar)
+    struct.pack_into("<i", header, 252, spread)
+    struct.pack_into("<i", header, 472, first_tick)
+    struct.pack_into("<i", header, 476, last_tick + 1)
+    return bytes(header) + bytes(records)
+
+
 def export_range(
     store: TickStore,
     copy_root: Path,
@@ -138,26 +249,61 @@ def export_range(
     to_day: date,
     *,
     no_fxt: bool,
+    spread: int = 30,
 ) -> dict[str, object]:
-    if not no_fxt:
-        raise ExportError("the .fxt writer is not measured yet; use --no-fxt")
     digits = SYMBOL_DECIMALS.get(symbol.upper())
     if digits is None:
         raise ExportError(f"no decimals known for {symbol}")
 
     started = time.perf_counter()
     bars: list[tuple[int, float, float, float, float, int]] = []
+    fxt_parts: list[bytearray] = []
+    fxt_bars = 0
+    fxt_records = 0
+    fxt_first_bar = fxt_last_bar = fxt_first_tick = fxt_last_tick = 0
     day = from_day
     while day <= to_day:
-        bars.extend(_bars_for_table(_ticks_of_day(store, day, symbol), digits))
+        table = _ticks_of_day(store, day, symbol)
+        bars.extend(_bars_for_table(table, digits))
+        if not no_fxt:
+            count, first_bar, last_bar, first_tick, last_tick, records = _fxt_parts(
+                table, digits, spread, FXT_HEADER_TEMPLATE
+            )
+            if not fxt_parts:
+                fxt_first_bar = first_bar
+                fxt_first_tick = first_tick
+            fxt_bars += count
+            fxt_records += len(records) // FXT_RECORD_SIZE
+            fxt_last_bar = last_bar
+            fxt_last_tick = last_tick
+            fxt_parts.append(records)
         day += timedelta(days=1)
 
     history = copy_root / "history" / "default"
     history.mkdir(parents=True, exist_ok=True)
     hst_path = history / f"{symbol.upper()}1.hst"
     hst_path.write_bytes(hst_bytes(symbol.upper(), bars, digits))
-    return {
+
+    result: dict[str, object] = {
         "hst": hst_path,
         "bars": len(bars),
         "seconds": time.perf_counter() - started,
     }
+    if not no_fxt:
+        header = bytearray(FXT_HEADER_TEMPLATE)
+        struct.pack_into("<i", header, 216, fxt_bars)
+        struct.pack_into("<i", header, 220, fxt_first_bar)
+        struct.pack_into("<i", header, 224, fxt_last_bar)
+        struct.pack_into("<i", header, 252, spread)
+        struct.pack_into("<i", header, 472, fxt_first_tick)
+        struct.pack_into("<i", header, 476, fxt_last_tick + 1)
+        fxt_dir = copy_root / "tester" / "history"
+        fxt_dir.mkdir(parents=True, exist_ok=True)
+        fxt_path = fxt_dir / f"{symbol.upper()}1_0.fxt"
+        if fxt_path.exists():
+            fxt_path.chmod(0o666)
+        fxt_path.write_bytes(bytes(header) + b"".join(fxt_parts))
+        fxt_path.chmod(0o444)
+        result["fxt"] = fxt_path
+        result["fxt_records"] = fxt_records
+    return result

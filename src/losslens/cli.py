@@ -460,6 +460,9 @@ def cmd_mt4_export(args: argparse.Namespace) -> int:
         return 2
     print(f"hst: {result['hst']}")
     print(f"bars: {result['bars']}")
+    if "fxt" in result:
+        print(f"fxt: {result['fxt']}")
+        print(f"fxt records: {result['fxt_records']}")
     print(f"export seconds: {result['seconds']:.3f}")
     return 0
 
