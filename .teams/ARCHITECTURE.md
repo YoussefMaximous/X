@@ -203,7 +203,7 @@ Limit, stated plainly: these layers stop mistakes and careless changes. They can
 ## Increment sequence
 
 1. Tick store (no MT4 needed).
-2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits. Quick run from the command line for any date range. The two guard tests (no live trading, no network) and the tester-only runner arrive here, with the first MT4 code.
+2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits. Quick run from the command line for any date range. The two guard tests (no live trading, no network) come first, as part A, before any MT4 code; the tester-only runner arrives with the first MT4 code, as part B.
 3. Full-year run, reconciliation, measurements, the real-spread re-fill (layer 1), the detector contract, the first ten detectors and the one-main-cause loss classification (D-22).
 4. The rest of catalogue v1, each with tests.
 5. App, part 1: the MT4-style chart (D-21). The MT4 checklist and designs signed off by the team, the chart-engine trial, then chart, timeframes, tools, standard indicators checked against MT4, trades drawn, tick replay.

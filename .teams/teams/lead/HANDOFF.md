@@ -22,9 +22,10 @@ Lead loss-lens to the north star in `.teams/PROJECT.md`. The Lead plans, briefs,
 
 ## State and how to check it
 - Repository `C:\Users\yr471\Projects\loss-lens`, branch `main`, remote `origin` = https://github.com/YoussefMaximous/loss-lens (private). Only the Lead pushes, after accepting an increment (D-10).
-- inc-1 (tick store) has been reviewed twice on 2026-11-20. The tick data is accepted: 2026-01-01 to 2026-11-20, 84M ticks, 0.5 GB, in `data/` (not in git). Send-back 1 fixed four of five items. Send-back 2 (three items, at the end of `.teams/increments/inc-1.md`) is with the builder: Ctrl+C hangs during a download because `npx.cmd` is a batch file; two small gaps in `ticks verify`.
-- `main` is ahead of `origin` and must not be pushed until send-back 2 is accepted (D-10). After pushing, check that the GitHub workflow (`.github/workflows/ci.yml`) runs green.
-- Check state with: `git log --oneline origin/main..main`, `git status --short`, then look for `.teams/teams/builder/work/report-inc-1c.md`.
+- inc-1 (tick store) is accepted and pushed (2026-11-20, after two send-backs; all judgments are in `.teams/increments/inc-1.md`). Tick data: 2026-01-01 to 2026-11-20, 84M ticks, 0.5 GB, in `data/` (not in git).
+- inc-2 part A (safety guards: `tests/test_no_network.py`, `tests/test_no_live_trading.py`, `SAFETY.md`, `npm ci --ignore-scripts`, stray word removed from the download command) is briefed in `.teams/increments/inc-2.md` and waits for the user to paste the block to the builder. Part B (MT4 run spike) is added to the same file after part A is accepted.
+- Push only accepted work (D-10), and after each push check that the GitHub workflow (`.github/workflows/ci.yml`) is green.
+- Check state with: `git log --oneline origin/main..main`, `git status --short`, `gh run list --limit 3`, then look for `.teams/teams/builder/work/report-inc-2a.md`.
 - MT4 (measured 2026-11-20 17:45): installed at `C:\Users\yr471\AppData\Roaming\MetaTrader 4 IC Markets Global\terminal.exe`, MetaTrader 4 build 1492, 32-bit, signed by MetaQuotes, "IC Markets (SC) MT4", and that folder is also its data folder. It has not connected to a demo account yet: the log shows no login, there is no `history\<server>` folder, and the symbol list is MT4's built-in default (which is why it lists "GOLD"). The last scanned server is `ICMarketsSC-Demo01`. The gold symbol's real name, its decimals and the server clock can only be read after a login.
 - How to send a real Ctrl+C from a script on this PC: start a driver with `Start-Process python ... -WindowStyle Hidden` (own console), let it start the command as a child, then call `ctypes.windll.kernel32.GenerateConsoleCtrlEvent(0, 0)`; the driver ignores SIGINT. Use `-PassThru` and `WaitForExit`, not `-Wait`, and kill the tree afterwards.
 
@@ -49,7 +50,7 @@ D-1 to D-22 in `.teams/DECISIONS.md` (D-21: inspection happens in our own chart,
 - User: when the repository goes public and under which licence (asked 2026-11-20). Before it goes public, the `.teams/` files need a pass: they hold this PC's folder paths and the user's GitHub name.
 - MT4 (checked 2026-11-20 after the user said "logged in"): the terminal is running but still has no `history\<server>` folder, so it has not connected to the demo yet.
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
-- Builder: report for send-back 2, `report-inc-1c.md`.
+- Builder: report for inc-2 part A, `report-inc-2a.md` (the user pastes the block first).
 - User: open MT4, finish opening the demo account inside the terminal so it connects, open a gold chart, then say so.
 
 ## Open
@@ -59,7 +60,7 @@ D-1 to D-22 in `.teams/DECISIONS.md` (D-21: inspection happens in our own chart,
 - Setup on the expert's PC (his MT4, his broker's symbol name and server time).
 
 ## Next step
-When the builder reports send-back 2, run its five "Done when" checks myself. If they pass: accept inc-1, push `main`, confirm the GitHub checks run green, then brief inc-2 (MT4 run spike: prove `.hst` and `.fxt` in a real MT4, reference EA, quick run from the command line, journal capture, both guard tests (no live trading, no network), `losslens doctor`, per-run log, and whether the runner's own MT4 copy can run tests without being logged in). Layer 1 goes into inc-3 and layer 2 is its own increment after the MT4 jump (ARCHITECTURE.md, "Increment sequence"). inc-2 cannot be verified until MT4 has connected to the demo.
+When the builder reports inc-2 part A, run its seven "Done when" checks myself (the twelve must-fail changes in check 2 one at a time, each undone). If they pass: accept, push, confirm GitHub is green. Then write part B into `inc-2.md` (MT4 run spike: prove `.hst` and `.fxt` in a real MT4, reference EA, quick run from the command line, journal capture, tester-only runner and its start-file check, `losslens doctor`, per-run log, and whether the runner's own MT4 copy can run tests without being logged in). Part B needs the `.fxt` layout checked against a primary source before briefing, and cannot be verified until MT4 has connected to the demo: the user doubts MT4 is needed (answered: his friend's EAs are MT4 EAs, and we must prove the software here with our own test EA), so he may need help with the login. Layer 1 goes into inc-3 and layer 2 comes after the app (ARCHITECTURE.md, "Increment sequence").
 
 ## Files
-`.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`, `.teams/DEFECTS.md`, `.teams/ROSTER.md`, `.teams/DECISIONS.md`, `.teams/KICKOFF.md`, `.teams/increments/inc-1.md`, `.teams/teams/builder/CHARTER.md`, `AGENTS.md`.
+`.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`, `.teams/DEFECTS.md`, `.teams/ROSTER.md`, `.teams/DECISIONS.md`, `.teams/KICKOFF.md`, `.teams/increments/inc-1.md`, `.teams/increments/inc-2.md`, `.teams/teams/builder/CHARTER.md`, `AGENTS.md`.

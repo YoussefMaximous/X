@@ -1,6 +1,6 @@
 # Increment inc-1: Tick store
 
-Planned: 2026-11-20 · Status: sent back twice (2026-11-20), current brief is "Send-back 2" at the end · Phase: prototype
+Planned: 2026-11-20 · Status: accepted and pushed 2026-11-20, after two send-backs (judgments at the end) · Phase: prototype
 
 ## Goal
 A local, validated store of XAUUSD 2026 ticks that one command fills and tops up, that any other tick CSV can be imported into, and that every later part reads through one function.
