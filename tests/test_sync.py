@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from losslens.cli import sync_days
+from losslens.cli import main, sync_days
 from losslens.ticks import dukascopy
 from losslens.ticks.store import TickStore, make_entry
 
@@ -89,6 +89,20 @@ def test_ordinary_error_is_still_retried(tmp_path):
     assert len(calls) == 3
     assert result["failures"] == ["2026-03-03"]
     assert store.load_manifest()["days"] == {}
+
+
+def test_sync_keyboard_interrupt_returns_130(monkeypatch, capsys):
+    def interrupted(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("losslens.cli.sync_days", interrupted)
+
+    code = main(
+        ["ticks", "sync", "--symbol", "XAUUSD", "--from", "2026-03-03", "--to", "2026-03-04"]
+    )
+
+    assert code == 130
+    assert "interrupted" in capsys.readouterr().err
 
 
 def test_finished_days_are_skipped_unless_forced(tmp_path):

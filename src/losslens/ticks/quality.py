@@ -18,6 +18,7 @@ GAP_SECONDS = 300
 def verify_symbol(
     store: TickStore, from_day: date | None = None, to_day: date | None = None
 ) -> dict[str, Any]:
+    explicit_range = from_day is not None or to_day is not None
     manifest = store.load_manifest()
     all_days = sorted(manifest.get("days", {}).items())
     entry_dates = [date.fromisoformat(iso) for iso, _ in all_days]
@@ -63,20 +64,24 @@ def verify_symbol(
     out_of_order_rows = sum(item["out_of_order_rows"] for item in days)
     integrity_problems = sum(len(item["problems"]) for item in days)
 
-    manifest_dates = {item["date"] for item in days}
+    manifest_dates = set(manifest.get("days", {}))
     files_not_in_manifest: list[str] = []
     for path in store.symbol_dir.rglob("*.parquet"):
         try:
             file_day = date.fromisoformat(path.stem)
         except ValueError:
             continue
-        if from_day <= file_day <= to_day and file_day.isoformat() not in manifest_dates:
+        if explicit_range and not (from_day <= file_day <= to_day):
+            continue
+        if file_day.isoformat() not in manifest_dates:
             files_not_in_manifest.append(file_day.isoformat())
     files_not_in_manifest = sorted(set(files_not_in_manifest))
 
+    report_path = store.root / "reports" / f"quality-{store.symbol}.json"
     report = {
         "symbol": store.symbol,
         "generated_at_utc": utc_now().isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "report_path": str(report_path),
         "range": {"from": from_day.isoformat(), "to": to_day.isoformat()},
         "days": days,
         "summary": {
@@ -89,8 +94,7 @@ def verify_symbol(
             "largest_bid_change_between_days": largest_jump,
         },
     }
-    path = store.root / "reports" / f"quality-{store.symbol}.json"
-    _write_json(path, report)
+    _write_json(report_path, report)
     return report
 
 

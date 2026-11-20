@@ -303,7 +303,7 @@ def _print_quality(report: dict[str, Any]) -> None:
             "Largest bid change between days: "
             f"{jump['change']:.3f} ({jump['from_date']} -> {jump['to_date']})"
         )
-    print(f"Quality report: data/reports/quality-{report['symbol']}.json")
+    print(f"Quality report: {report['report_path']}")
 
 
 def cmd_ticks_query(args: argparse.Namespace) -> int:

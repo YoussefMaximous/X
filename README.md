@@ -39,7 +39,7 @@ one UTC day at a time, oldest first. Finished days (`complete`, `empty`,
 `imported`) are skipped, so running it again is cheap. `--force` re-downloads
 everything in the range except imported days. A failed day is retried, then left
 unrecorded and reported at the end (exit code 1); it is never saved as empty. A
-setup problem (no Dukascopy mapping, no `npx`, no local `dukascopy-node`, no
+setup problem (no Dukascopy mapping, no `node`, no local `dukascopy-node`, no
 Chrome or Edge) stops at once with one `setup problem:` line and exit code 2.
 Stopping with Ctrl+C is safe: every file is written atomically, temporary
 download folders are removed, and the next run continues with whatever is not

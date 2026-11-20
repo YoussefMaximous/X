@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -9,6 +10,7 @@ import tempfile
 import time
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 import pyarrow as pa
 import pyarrow.csv as pacsv
@@ -77,28 +79,53 @@ def cleanup_stale_temp_dirs(
     return removed
 
 
+def _download_script(root: Path) -> Path:
+    """Read the bin entry named dukascopy-node from the pinned package."""
+    package_dir = root / "node_modules" / "dukascopy-node"
+    package_file = package_dir / "package.json"
+    if not package_file.is_file():
+        raise SetupError(
+            "dukascopy-node is not installed; run 'npm install' in the repository folder"
+        )
+    try:
+        package = cast(dict[str, Any], json.loads(package_file.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SetupError(f"could not read {package_file}: {exc}") from exc
+
+    bin_value = package.get("bin")
+    script: str | None = None
+    if isinstance(bin_value, dict):
+        entry = bin_value.get("dukascopy-node")
+        script = entry if isinstance(entry, str) else None
+    elif isinstance(bin_value, str):
+        script = bin_value
+    if not script:
+        raise SetupError("dukascopy-node package has no 'bin' entry named 'dukascopy-node'")
+
+    path = (package_dir / script).resolve()
+    if not path.is_file():
+        raise SetupError(f"dukascopy-node script not found: {path}")
+    return path
+
+
 def download_day(symbol: str, day: date, temp_root: Path | str | None = None) -> Path | None:
     """Download one UTC day; return the CSV path, or None when the day is empty.
 
     The caller owns the returned file's temporary folder and must delete it.
     """
     instrument = instrument_for(symbol)
-    npx = shutil.which("npx")
-    if not npx:
-        raise SetupError("npx was not found on PATH; install Node.js and run npm install")
+    node = shutil.which("node")
+    if not node:
+        raise SetupError("node was not found on PATH; install Node.js and run npm install")
 
     root = repository_root()
-    local_package = root / "node_modules" / "dukascopy-node" / "package.json"
-    if not local_package.exists():
-        raise SetupError(
-            "dukascopy-node is not installed; run 'npm install' in the repository folder"
-        )
+    script = _download_script(root)
 
     browser = find_browser()
     if not browser:
         raise SetupError(
             "Chrome or Edge was not found in its standard install folder; "
-            "run 'npx dukascopy-node --install-browser' once"
+            "install Google Chrome or Microsoft Edge"
         )
 
     work_dir = Path(
@@ -110,7 +137,8 @@ def download_day(symbol: str, day: date, temp_root: Path | str | None = None) ->
     keep = False
     try:
         cmd = [
-            npx,
+            node,
+            str(script),
             "dukascopy-node",
             "-i",
             instrument,
@@ -148,6 +176,7 @@ def download_day(symbol: str, day: date, temp_root: Path | str | None = None) ->
                 errors="replace",
                 env=env,
                 cwd=root,
+                stdin=subprocess.DEVNULL,
                 timeout=600,
             )
         except Exception as exc:

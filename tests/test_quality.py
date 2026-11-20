@@ -212,6 +212,52 @@ def test_verify_reports_a_file_without_a_manifest_entry(tmp_path, monkeypatch):
     )
 
 
+def test_default_verify_finds_a_file_before_the_first_manifest_day(tmp_path, monkeypatch):
+    store = TickStore(tmp_path, "XAUUSD")
+    _one_row(store)
+    _entry(store, 1, BASE, BASE)
+    store.write_day(
+        date(2025, 12, 30),
+        pa.table(
+            {
+                "ts_ms": [BASE],
+                "bid": [100.0],
+                "ask": [101.0],
+                "bid_vol": [0.0],
+                "ask_vol": [0.0],
+            }
+        ),
+    )
+
+    report = quality.verify_symbol(store)
+
+    assert "2025-12-30" in report["summary"]["files_not_in_manifest"]
+    assert (
+        "2025-12-30"
+        not in quality.verify_symbol(store, DAY, DAY)["summary"]["files_not_in_manifest"]
+    )
+    monkeypatch.setattr("losslens.cli.resolve_data_root", lambda: tmp_path)
+    assert main(["ticks", "verify", "--symbol", "XAUUSD"]) == 1
+
+
+def test_verify_prints_the_report_path_it_wrote(tmp_path, monkeypatch, capsys):
+    store = TickStore(tmp_path, "XAUUSD")
+    _one_row(store)
+    _entry(store, 1, BASE, BASE)
+    expected = str(tmp_path / "reports" / "quality-XAUUSD.json")
+    monkeypatch.setattr("losslens.cli.resolve_data_root", lambda: tmp_path)
+
+    report = quality.verify_symbol(store, DAY, DAY)
+    assert report["report_path"] == expected
+    assert (
+        main(
+            ["ticks", "verify", "--symbol", "XAUUSD", "--from", "2026-03-03", "--to", "2026-03-03"]
+        )
+        == 0
+    )
+    assert f"Quality report: {expected}" in capsys.readouterr().out
+
+
 def test_weekdays_without_data_are_listed(tmp_path):
     store = TickStore(tmp_path, "XAUUSD")
     store.write_day(
