@@ -53,8 +53,7 @@ D-1 to D-26 in `.teams/DECISIONS.md` (D-23: a defect is only a reason a loss hap
 - User: when the repository goes public and under which licence (asked 2026-11-20). Before it goes public, the `.teams/` files need a pass: they hold this PC's folder paths and the user's GitHub name.
 - MT4: nothing more from the user; it connected to the demo at 18:48 (see "State").
 - Not waiting on: the expert's review of the catalogue (after the software is finished, D-11).
-- Builder: nothing; it is idle until part B is briefed.
-- User: open MT4, finish opening the demo account inside the terminal so it connects, open a gold chart, then say so.
+- Builder: idle until the user pastes the inc-2 part B block. The brief is at the end of `.teams/increments/inc-2.md` (a tester-only copy with no account, a probe EA that only records ticks, then a comparison with the store). The user will say "Report inc-2b is ready".
 
 ## Open
 - The app is now much larger (an MT4-style chart with tools and indicators). Before the app increments: ask the user for a stronger builder model, activate the design team, and make the MT4 checklist from the real MT4 on this PC.
@@ -63,7 +62,7 @@ D-1 to D-26 in `.teams/DECISIONS.md` (D-23: a defect is only a reason a loss hap
 - Setup on the expert's PC (his MT4, his broker's symbol name and server time).
 
 ## Next step
-Write part B into `inc-2.md` (MT4 run spike: prove `.hst` and `.fxt` in a real MT4, reference EA, quick run from the command line, journal capture, tester-only runner and its start-file check, `losslens doctor`, per-run log, and whether the runner's own MT4 copy can run tests without being logged in). Part B needs the `.fxt` layout checked against a primary source before briefing, and cannot be verified until MT4 has connected to the demo: the user doubts MT4 is needed (answered: his friend's EAs are MT4 EAs, and we must prove the software here with our own test EA), so he may need help with the login. Layer 1 goes into inc-3 and layer 2 comes after the app (ARCHITECTURE.md, "Increment sequence").
+When the builder reports inc-2 part B, run its "Done when" checks, including the tamper list, and re-run the one-day comparison myself. The `.fxt` layout is not assumed: item 6 tells the builder to take it from the file MT4 writes. Part C (a reference EA that trades inside the tester) is briefed only after part B's numbers are accepted. The loss-screen design is D-26, in `.teams/LOSSES.md`; it is not built in this part.
 
 ## Files
 `.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`, `.teams/DEFECTS.md`, `.teams/ROSTER.md`, `.teams/DECISIONS.md`, `.teams/KICKOFF.md`, `.teams/increments/inc-1.md`, `.teams/increments/inc-2.md`, `.teams/teams/builder/CHARTER.md`, `AGENTS.md`.

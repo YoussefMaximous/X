@@ -1,8 +1,8 @@
 # Increment inc-2, part A: Safety guards
 
-Planned: 2026-11-20 · Status: part A accepted and pushed 2026-11-20, after two send-backs (judgments below); part B not yet written · Phase: prototype
+Planned: 2026-11-20 · Status: part A accepted and pushed 2026-11-20, after two send-backs (judgments below); part B briefed 2026-11-20 (at the end of this file) · Phase: prototype
 
-Part B (the MT4 run spike) will be added to this file after part A is accepted. Do not start it.
+Part B (our ticks through MT4's Strategy Tester) is at the end of this file. Part A is closed; do not change it.
 
 ## Goal
 The two promises in `AGENTS.md` become tests that fail the build: this software never trades (D-14) and nothing leaves the PC (D-20). They are in place before any MT4 code or app code exists, so every later change is checked by them.
@@ -307,3 +307,179 @@ The guard rules now in force: 2a approved imports (and imported submodules), 2b 
 Known limit, accepted: code written to hide on purpose is outside what these scans can see. Review of every change covers that.
 
 When later parts add code in new places (`mql4/`, the app), the Lead extends the approved lists in the brief for that part, and adds the guards those parts need (tester-only start file, reference EA allowed to hold order functions and required to check `IsTesting()`, server bound to `127.0.0.1`, no outside address in app screens).
+
+---
+
+# Increment inc-2, part B: our ticks through MT4's Strategy Tester
+
+Planned: 2026-11-20 · Status: briefed, not started · Phase: prototype (a spike: its product is measured answers)
+
+## Goal
+One question decides whether the whole product can be accurate: **when MT4's Strategy Tester runs an EA, does the EA see exactly our stored ticks?** This part builds the smallest chain that can answer it, and answers it with numbers: a separate MT4 copy that has no account, our price files written into it, a probe EA that records every tick it is given, and a comparison with the tick store.
+
+No trade is placed in this part, not even a simulated one. The probe EA only records. The reference EA that trades inside the tester comes in part C.
+
+## Hard rules for this part (read twice)
+1. **Never log in, never open an account.** The MT4 copy has no account and must stay that way. If a login window or an "open an account" window appears, type nothing and click nothing in it. Let the run time out, write down what appeared, and go on to the next step.
+2. **Never start the user's own MT4.** The only `terminal.exe` and `metaeditor.exe` you may start are the ones inside the copy made by item 2. Never stop a program by its name: the user's own MT4 may be open. A timed-out run is ended only through the process you started.
+3. **Never copy anything from the user's MT4 folder except the four files named in item 2.** Not `config`, not `profiles`, not `logs`, not anything under `MQL4`. Do not open or list the user's `MQL4\Experts`, `Indicators`, `Scripts`, `Libraries`, `Presets` or `Files`, and do not open any file in `config`. Two things in the user's folder may be read without copying: MetaQuotes' own sample `MQL4\Scripts\PeriodConverter.mq4` (it shows the `.hst` layout), and file names in `history`.
+4. **Never write an account number, a name or a password into any file,** including your report.
+5. **If a step does not work, do not work around it.** Do not remove a line from the start file, do not copy an extra file, do not change a guard list. Write what you ran and what you saw, mark the step "did not work", and continue with the steps that do not depend on it. A clear "it did not work, and here is the evidence" is a good result for a spike.
+6. Do not edit `SAFETY.md`, `AGENTS.md`, or anything under `.teams/` outside your own folder. No new dependencies. Do not change the stored ticks.
+
+## Facts you start from
+- measured: MT4 is installed at `%APPDATA%\MetaTrader 4 IC Markets Global` (build 1492). Its root holds `terminal.exe` and `metaeditor.exe`. `history\ICMarketsSC-Demo04\` holds `symbols.raw` and `symgroups.raw`. `history\default\` exists, which suggests that is the folder a terminal without an account uses (inferred, to be measured).
+- measured: the gold symbol is `XAUUSD`. Its decimals read as 2 (position in the file inferred; item 3 confirms it).
+- measured, from MetaQuotes' own `PeriodConverter.mq4` on this PC: an `.hst` file of version 401 has a header of 148 bytes (version as a 4-byte integer, copyright 64 bytes, symbol 12 bytes, period, digits, two zero integers, then 13 unused integers) followed by `MqlRates` records of 60 bytes (time as an 8-byte integer; open, high, low, close as 8-byte doubles; tick volume as an 8-byte integer; spread as a 4-byte integer; real volume as an 8-byte integer).
+- expected, **not measured**: an `.fxt` file of version 405 has a header of 728 bytes and records of 56 bytes (bar time as an 8-byte integer; open, high, low, close as 8-byte doubles; volume as an 8-byte integer; current time as a 4-byte integer; flag as a 4-byte integer). MetaQuotes' help page "History Files in FXT Format" describes an older form (a 4-byte time, the order open, low, high, close, 52 bytes) and leaves out a 128-byte text field after the copyright. **The file MT4 itself writes in item 6 decides, not this paragraph.**
+- checked on MetaQuotes' help page "Configuration at Startup": the start file is lines of `Key=Value`; the tester keys are those listed in item 5; the same file format also has keys that log in (`Login`, `Server`) and keys that attach an EA or a script to a chart (`Expert`, `Script`, `Symbol`, `Period`, `Template`). Those must never be written.
+- from memory, to be checked: an EA is compiled with `metaeditor.exe /compile:"<path to .mq4>" /log`. If that is not the right form, find the right one in MetaEditor's own help and report the exact line that worked.
+- decided (ARCHITECTURE, "MT4 export"): MT4 files are written in broker server time, which is New York time plus 7 hours: UTC+3 while the United States is on summer time, UTC+2 otherwise. Prices are rounded to the symbol's decimals before writing.
+
+## Brief
+
+### builder
+
+**Your area:** every file outside `.teams/` except `AGENTS.md` and `SAFETY.md`; plus `.teams/teams/builder/`.
+
+**Inputs:** this part; `.teams/ARCHITECTURE.md`, sections "MT4 export", "Safety" and "Privacy"; decisions D-14, D-18, D-19, D-20.
+
+**Bias reminder:** you will want the run to succeed. The job is to find out what MT4 really does. Report the numbers you get, not the numbers you hoped for.
+
+#### Item 1. Guards first
+Make these changes before any other code, so everything after is written under them. All new constants go at the top of `tests/test_no_live_trading.py` under its SAFETY GUARD comment, unless a line below says otherwise. Each new rule gets a must-flag and a must-not-flag sample test, with bad samples built from pieces as before (rule 3c will flag a test that spells out a login line in one piece).
+
+**Changes to existing lists** (in `tests/test_no_network.py`):
+- `SUBPROCESS_ALLOWED` becomes `{"src/losslens/ticks/dukascopy.py": 1, "src/losslens/mt4/programs.py": 1}`.
+- `APPROVED_IMPORTS`: no change. If you think you need another module, stop and say so in the report.
+- Rule 2f: extend the test so that `mt4 export`, `mt4 inspect-fxt` and `mt4 check-ticks` also run with `subprocess.run` and `subprocess.Popen` replaced by functions that raise. Only `ticks sync`, `mt4 compile` and `mt4 run` may start a program.
+
+**Rule 2i, tightened: our MT4 files are an exact list.** `MQL_FILES_ALLOWED = frozenset({"mql4/Experts/LossLensProbe.mq4"})`. Any `.mq4`, `.mq5` or `.mqh` file under `mql4/` that is not in the list fails. Compiled files (`.ex4`, `.ex5`) fail everywhere in the repository, `mql4/` included.
+
+**New rule 2m: our MT4 files never ask who the user is.** In every `.mq4`, `.mq5` and `.mqh` file, fail on any of: `AccountNumber`, `AccountName`, `AccountCompany`, `AccountServer`, `ACCOUNT_LOGIN`, `ACCOUNT_NAME`, `ACCOUNT_SERVER`, `ACCOUNT_COMPANY`.
+
+**New rule 3d: the start file can only start the tester.** Production code has one function that builds the start file text and one function that checks a start file text and returns the list of problems. The checker fails on any line that is not a comment, not empty, and not one of:
+- a tester key from this exact list, with any value: `TestExpert`, `TestSymbol`, `TestPeriod`, `TestModel`, `TestSpread`, `TestOptimization`, `TestDateEnable`, `TestFromDate`, `TestToDate`, `TestReport`, `TestReplaceReport`, `TestShutdownTerminal`, `TestVisualEnable`;
+- one of these fixed lines, exactly as written: `ExpertsEnable=false`, `ExpertsTrades=false`, `ExpertsDllImport=false`, `ExpertsExpImport=false`, `EnableNews=false`, `EnableDDE=false`, `AutoConfiguration=false`, `ProxyEnable=true`, `ProxyServer=127.0.0.1:9`, `ProxyType=HTTP`.
+
+It also fails if any of the ten fixed lines is missing, if a key appears twice, or if `TestOptimization` is not `false`. Keys are compared exactly, including capitals. The two lists are constants in the test file (`TESTER_KEYS`, `TESTER_FIXED_LINES`); a test asserts that the production constants are equal to them, and that the checker flags each of these, alone: a `Login` line, a `Server` line, an `Expert` line, a `Script` line, a `Symbol` line, a `Template` line, a `Profile` line, `ExpertsTrades=true`, a missing `ExpertsTrades=false`, `ProxyEnable=false`.
+
+Why the proxy lines: a started MT4 looks for updates and servers on the internet. Pointing it at a closed port on this PC is meant to keep it offline (D-20). Whether that works is measured in item 8.
+
+**New rule 3e: the only programs started are MT4's two, inside our copy, and the tester only.** `src/losslens/mt4/programs.py` holds the one `subprocess.run`. Before starting anything it must refuse, with a plain message, unless:
+- the program's file name is exactly `terminal.exe` or `metaeditor.exe` (compared in lower case), and its resolved path is inside the copy folder of item 2;
+- for `terminal.exe`: the arguments are `/portable` and exactly one of these: a start-file path, or `/config:` followed by a start-file path. The file is inside the copy folder, and its text passes the checker of rule 3d (the file is read and checked at that moment, not earlier). One test builds the start file the run command would write and asserts the checker finds nothing wrong;
+- for `metaeditor.exe`: the file to compile is `LossLensProbe.mq4` inside the copy's `MQL4\Experts`.
+
+Every start has `stdin=subprocess.DEVNULL` and a timeout. Tests replace `subprocess.run` with a recorder and assert, each alone, that these are refused before the recorder is called: a `terminal.exe` outside the copy; a program named `cmd.exe` inside the copy; a start file with an `Expert` line; a start file outside the copy; an extra argument after the start file; a missing `/portable`.
+
+**New rule 3f: every EA of ours refuses to run outside the tester.** Every `.mq4` file under `mql4/` must contain a line that matches `if\s*\(\s*!\s*IsTesting\s*\(\s*\)\s*\)\s*return\s*\(\s*INIT_FAILED\s*\)\s*;`.
+
+**New rule 3g: the copy is made from an exact list.** `MT4_COPY_FILES` in the test file is exactly: `terminal.exe`, `metaeditor.exe`, `history/<server>/symbols.raw`, `history/<server>/symgroups.raw`. A test asserts the production list equals it. Another test builds a fake MT4 folder in `tmp_path` holding those four files plus `config/accounts.ini`, `config/terminal.lic`, `profiles/default/chart01.chr`, `MQL4/Experts/Secret.ex4`, `MQL4/Experts/Secret.mq4`, `MQL4/Include/x.mqh` and `logs/20261120.log`, runs the setup on it, and asserts the copy holds exactly four files (see item 2 for where they land).
+
+#### Item 2. `losslens mt4 setup --from "<MT4 folder>" --server <name>`
+Makes the copy at `<data folder>/mt4/terminal/` (the data folder is the one the tick store uses; it is not committed and the guards do not walk it):
+- `terminal.exe` and `metaeditor.exe` into the copy's root;
+- `history/<server>/symbols.raw` and `symgroups.raw` into the copy's `history/default/`.
+
+Nothing else. It refuses if the target already holds a `terminal.exe` unless `--replace` is given, and `--replace` deletes only the copy folder. It prints each file copied with its size. It never stores the `--from` path anywhere.
+
+#### Item 3. The probe EA: `mql4/Experts/LossLensProbe.mq4`
+`#property strict`. No inputs. No order function. No `#import`. It:
+- starts `OnInit` with the line `if(!IsTesting()) return(INIT_FAILED);`
+- writes one text file `losslens_probe_info.txt` at start with: `Symbol()`, `Period()`, `Digits`, `Point`, and `MarketInfo` for `MODE_SPREAD`, `MODE_STOPLEVEL`, `MODE_FREEZELEVEL`, `MODE_TICKVALUE`, `MODE_TICKSIZE`, `MODE_LOTSIZE`, `MODE_MINLOT`, `MODE_LOTSTEP`, `MODE_MAXLOT`, `MODE_SWAPLONG`, `MODE_SWAPSHORT`, `MODE_PROFITCALCMODE`, `MODE_MARGINREQUIRED`; `AccountBalance()`, `AccountCurrency()`, `AccountLeverage()`; `IsVisualMode()`; the terminal build. One `name=value` per line.
+- on every tick appends one binary record of 40 bytes to `losslens_probe_ticks.bin`: `TimeCurrent()` as an 8-byte integer, `Bid` and `Ask` as 8-byte doubles, `Volume[0]` as an 8-byte integer, `Time[0]` as an 8-byte integer. The file is opened in the tester's own files folder, never with `FILE_COMMON`.
+- closes the file in `OnDeinit`.
+
+In the tester these files land in the copy's `tester\files\`.
+
+`losslens mt4 compile` copies this one file into the copy's `MQL4\Experts\`, compiles it there with the copy's `metaeditor.exe` (timeout 120 seconds), prints the compiler's log, and fails unless the log reports 0 errors and `LossLensProbe.ex4` exists in the copy.
+
+#### Item 4. `losslens mt4 export --symbol XAUUSD --from <day> --to <day> [--no-fxt]`
+Reads the tick store day by day (never more than one day of ticks in memory) and writes into the copy:
+- `history/default/XAUUSD1.hst`, version 401, layout as in "Facts". The 64-byte copyright text is the one `PeriodConverter.mq4` on this PC writes: `Copyright 2005-2025, MetaQuotes Ltd.`, and the rest of those 64 bytes are zeros. One bar per minute that has ticks: bid prices, first, highest, lowest, last; tick volume = number of ticks; spread 0; real volume 0.
+- unless `--no-fxt`: one record per stored tick in store order, each holding the state of its minute bar at that tick (open = first bid of the minute; high and low so far; close = this tick's bid; volume = number of ticks in the minute so far; bar time = start of the minute; current time = the tick's second). This record layout and the file name `tester/history/XAUUSD1_0.fxt` are the starting guess. Item 6 replaces both with what MT4 itself writes: use the name and the field positions MT4 used, wherever they differ. Then the file is made read-only. An existing file is made writable and replaced.
+
+For both files:
+- time is broker server time in whole seconds: UTC second plus 3 hours while the United States is on summer time (from 07:00 UTC on the second Sunday of March to 06:00 UTC on the first Sunday of November), plus 2 hours otherwise. Compute the two Sundays with plain date arithmetic; do not use `zoneinfo` (it needs data Windows does not have).
+- prices are rounded to the symbol's decimals, half away from zero, before anything else is computed from them.
+- if any day in the range is not stored as complete, it stops and names the days.
+
+The `.fxt` header: do not invent it. In item 6 MT4 writes its own `.fxt`; our header is that header, byte for byte, with only the fields that must differ changed (number of bars, the from and to times, and any field item 6 shows must differ). Until item 6 has been done, `--no-fxt` is the only mode that works; say so in the command's message.
+
+`losslens mt4 inspect-fxt <file>` prints the file size, the header size and record size it decoded with, every header field with its byte position and value, the first five and last five records, and the number of records.
+
+Unit tests (no MT4 needed): the `.hst` bytes for a hand-made case of five ticks across two minutes, compared with bytes written out by hand in the test; the server-time offset at 2026-03-08 06:59:59 and 07:00:00 UTC, and at 2026-11-01 05:59:59 and 06:00:00 UTC; rounding of 2650.125 and 2650.124 to 2 decimals; the `.fxt` records for the same five ticks.
+
+#### Item 5. `losslens mt4 run --symbol XAUUSD --from <day> --to <day> --spread 30 --timeout <seconds>`
+Writes `losslens_start.ini` into the copy's root, built by the one function of rule 3d: `TestExpert=LossLensProbe`, `TestSymbol`, `TestPeriod=M1`, `TestModel=0`, `TestSpread`, `TestOptimization=false`, `TestDateEnable=true`, `TestFromDate` and `TestToDate` (the day after `--to`), both as `YYYY.MM.DD`, `TestReport=tester\losslens_report`, `TestReplaceReport=true`, `TestShutdownTerminal=true`, `TestVisualEnable=false`, and the ten fixed lines. Deletes the probe's two output files from an earlier run, then starts `terminal.exe /portable <start file>` through `programs.py` and waits. It prints how long the run took, whether it ended by itself or by timeout, and whether the report and the probe files exist.
+
+#### Item 6. Measure: what MT4 does on its own
+Order of work, on the day **2026-03-03** (554,076 stored ticks):
+1. `mt4 setup`, `mt4 compile`.
+2. `mt4 export --no-fxt` for that day, then `mt4 run` with a timeout of 600 seconds. MT4 should build its own `.fxt` from the minute bars.
+3. `mt4 inspect-fxt` on the file MT4 wrote. Work out the real layout: the header size and record size for which (file size minus header) divides exactly; the positions where the known values sit (405, `XAUUSD`, period 1, decimals 2, spread 30); records whose bar times fall on whole minutes of that day and whose prices equal the `.hst` bars. Write the result to `docs/MT4_FILES.md`: both layouts, field by field with byte positions, each marked "measured on build 1492" or "not confirmed".
+4. Record: what the probe's info file says; how many ticks the probe was given and how many per minute bar on average; the lines of the report that give modelling quality, bars in test, ticks modelled and mismatched charts errors; what appeared in the copy's `config`, `logs`, `tester\logs`, `MQL4` and `profiles` folders (file names and sizes only); whether a window appeared and what it was.
+
+#### Item 7. Measure: does MT4 use our ticks?
+1. Finish the `.fxt` writer from what item 6 measured. `mt4 export` for 2026-03-03 (with the `.fxt`), note the file's SHA-256, then `mt4 run`.
+2. `losslens mt4 check-ticks --symbol XAUUSD --from <day> --to <day>` compares the probe's records with the store for that range, converted the same way as the export (server time, rounded bid). It finds where the probe's first record sits in the store's sequence, compares from there in order, and prints: ticks in the store; ticks the probe was given; ticks skipped at the start and at the end; the number that differ in time; the number that differ in bid; the first three differences in full; the smallest and largest `Ask - Bid`; and one line `RESULT: identical` or `RESULT: different`.
+3. Record: that output; the `.fxt`'s SHA-256 after the run (did MT4 rewrite it?); the report lines as in item 6; the tester's log lines that mention the history file.
+4. If the result is `identical` for the day: repeat export, run and check for the week 2026-03-02 to 2026-03-06 (timeout 1800), then for March 2026, 2026-03-01 to 2026-03-31 (timeout 3600; it crosses the summer-time change on 2026-03-08), then, only if March passed, for 2026-01-01 to 2026-03-31 (timeout 7200). For each: the `.fxt` size, the time to export, the time to run, the check's output. Stop at the first range that fails and report how it failed.
+5. If the result is `different` for the day: do not try other tricks. Report the numbers.
+
+#### Item 8. Measure: does the copy stay offline?
+During at least two runs (one of item 6, one of item 7) keep this running in a second PowerShell window, and put its full output in the report. It lists every connection the copy's `terminal.exe` has to an address that is not this PC:
+
+```powershell
+while ($true) { Get-Process terminal -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*\mt4\terminal\terminal.exe" } | ForEach-Object { Get-NetTCPConnection -OwningProcess $_.Id -ErrorAction SilentlyContinue | Where-Object { $_.RemoteAddress -notin "127.0.0.1","::1","0.0.0.0","::" } | Select-Object RemoteAddress, RemotePort, State }; Start-Sleep -Milliseconds 500 }
+```
+
+Also quote every line of the copy's own `logs\*.log` that mentions a connection, a server, an update or a login (replace any account number with `***`). This is a sample twice a second, so a very short connection can be missed: report it as "checked by sampling", not as proof.
+
+#### Not in this part
+Any trade, simulated or not. Parsing the report. The reference EA. Chunking a year. The app. Changes to `SAFETY.md` (the Lead updates it when this part is accepted, from what was measured).
+
+## Done when
+The Lead runs these on this PC, from the repository root.
+
+1. `python -m pytest -q`, `python -m ruff check .`, `python -m ruff format --check .` and `python -m mypy` all exit 0, with no `type: ignore`, `noqa`, skip or xfail. No test starts MT4.
+2. Every change from part A's three briefs still makes `pytest` exit 1.
+3. Each change below, made alone in a copy of the repository and undone, makes `pytest` exit 1 with a message that names the file and the rule:
+   a. the start-file builder also writes an `Expert` line with the probe's name
+   b. the start-file builder no longer writes `ExpertsTrades=false`
+   c. the start-file builder writes `ProxyEnable=false`
+   d. a `Login` key added to the production list of tester keys
+   e. the `IsTesting` line removed from `LossLensProbe.mq4`
+   f. `Print(AccountNumber());` added to `LossLensProbe.mq4`
+   g. an order call added to `LossLensProbe.mq4`
+   h. a new file `mql4/Experts/Other.mq4` that has the `IsTesting` line and nothing forbidden
+   i. a new file `mql4/Experts/LossLensProbe.ex4`
+   j. `config/accounts.ini` added to the production list of files to copy
+   k. a second `subprocess.run` in `src/losslens/mt4/programs.py`
+   l. `import subprocess` in any other file under `src/losslens/mt4/`
+   m. the "inside the copy folder" check removed from `programs.py`
+   n. the start-file check removed from `programs.py`
+4. After `mt4 setup` into an empty data folder, the copy holds exactly the four files.
+5. `mt4 compile` gives 0 errors. The item 6 and item 7 commands, run again by the Lead for 2026-03-03, give the same numbers as the report.
+6. `docs/MT4_FILES.md` exists and every field in it is marked measured or not confirmed.
+7. The report answers every question below with a command and its real output, or says "did not work" with the evidence.
+8. `git status` is clean after your commits; no `.ex4`, no `.fxt`, no `.hst`, no MT4 program and no file from the user's MT4 folder is in the repository; nothing under `.teams/` outside your folder changed.
+
+## Questions the report must answer
+| # | Question |
+|---|---|
+| Q1 | Does a copy with no account and no `config` folder start, run a test from the start file, and close by itself? What appeared on screen? |
+| Q2 | Does the test run with all four `Experts...=false` lines? |
+| Q3 | Which history folder does the copy use, and does it know `XAUUSD` from the two copied files? |
+| Q4 | What does the probe's info file say (decimals, point, spread, stop level, tick value, tick size, lot sizes, swaps, balance, currency, leverage)? |
+| Q5 | The exact command line that compiles an EA. |
+| Q6 | The measured `.fxt` layout (header size, record size, field positions) and the `.hst` layout MT4 accepted. |
+| Q7 | Left alone, how many ticks does MT4 make up for that day, against 554,076 real ones? What modelling quality does it report? |
+| Q8 | With our read-only `.fxt`: did the EA get our ticks? Counts, differences, ticks skipped at the start and end, and whether MT4 rewrote the file. |
+| Q9 | Is `Ask - Bid` the same fixed amount on every tick? |
+| Q10 | Sizes and times for a day, a week, a month and three months, and where it stopped working if it did. |
+| Q11 | Did the copy connect to anything outside this PC? What did MT4 create in its own folder? |
+| Q12 | Anything you saw that this brief did not expect. |
+
+**Return:** `.teams/teams/builder/work/report-inc-2b.md`: a summary of 12 lines or fewer, then Q1 to Q12 in order, each with the command and its real output and one of the words measured / checked / inferred / not verified; then the "Done when" checks; then "did not work" items. And an updated `HANDOFF.md`.
