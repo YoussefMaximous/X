@@ -39,6 +39,19 @@ MQL_ONLINE_NAMES = (
     "HttpOpenRequest",
     "URLDownloadToFile",
 )
+MQL_ACCOUNT_NAMES = (
+    "AccountNumber",
+    "AccountName",
+    "AccountCompany",
+    "AccountServer",
+    "ACCOUNT_LOGIN",
+    "ACCOUNT_NAME",
+    "ACCOUNT_SERVER",
+    "ACCOUNT_COMPANY",
+)
+IS_TESTING_RE = re.compile(
+    r"if\s*\(\s*!\s*IsTesting\s*\(\s*\)\s*\)\s*return\s*\(\s*INIT_FAILED\s*\)\s*;"
+)
 ORDER_FUNCTION_RE = re.compile(r"\bOrder(Send|Close|CloseBy|Modify|Delete)\s*\(")
 PASSWORD_RE = re.compile(r"(?i)\b(password|passwd|investor[_ ]?password)\s*[=:]\s*\S")
 TRADING_LIBRARIES = frozenset(
@@ -392,14 +405,14 @@ def check_mql_online(text: str, filename: str) -> list[str]:
     return problems
 
 
-def check_ea_files(root: Path) -> list[str]:
+def check_ea_files(root: Path, allowed_mql: frozenset[str]) -> list[str]:
     problems: list[str] = []
     for relative, path in iter_repository_files(root, include_teams=True):
-        if path.suffix.lower() not in EA_SUFFIXES:
-            continue
-        if relative.startswith("mql4/"):
-            continue
-        problems.append(f"{relative}: rule 2i: {EA_FILE_MESSAGE}")
+        suffix = path.suffix.lower()
+        if suffix in {".ex4", ".ex5"}:
+            problems.append(f"{relative}: rule 2i: {EA_FILE_MESSAGE}")
+        elif suffix in {".mq4", ".mq5", ".mqh"} and relative not in allowed_mql:
+            problems.append(f"{relative}: rule 2i: {EA_FILE_MESSAGE}")
     return problems
 
 
@@ -519,3 +532,20 @@ def check_passwords(text: str, filename: str) -> list[str]:
             )
         )
     return problems
+
+
+def check_mql_account(text: str, filename: str) -> list[str]:
+    problems: list[str] = []
+    for name in MQL_ACCOUNT_NAMES:
+        index = text.find(name)
+        if index >= 0:
+            problems.append(
+                _problem(filename, _line_of(text, index), "2m", f"MQL account name {name!r} found")
+            )
+    return problems
+
+
+def check_is_testing(text: str, filename: str) -> list[str]:
+    if IS_TESTING_RE.search(text):
+        return []
+    return [f"{filename}: rule 3f: missing the IsTesting() refusal line"]

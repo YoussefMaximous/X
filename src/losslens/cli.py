@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .mt4 import check as mt4_check
+from .mt4 import compile as mt4_compile
+from .mt4 import copy as mt4_copy
+from .mt4 import export as mt4_export
+from .mt4 import fxt as mt4_fxt
+from .mt4 import run as mt4_run
 from .ticks import dukascopy, importer, quality
 from .ticks.store import (
     DONE_STATUSES,
@@ -86,6 +92,43 @@ def build_parser() -> argparse.ArgumentParser:
     status = tick_commands.add_parser("status", help="show what the store covers")
     status.add_argument("--symbol", required=True)
     status.set_defaults(func=cmd_ticks_status)
+
+    mt4 = commands.add_parser("mt4", help="MT4 copy, export, compile and run")
+    mt4_commands = mt4.add_subparsers(dest="mt4_command", required=True)
+
+    setup = mt4_commands.add_parser("setup", help="make the separate MT4 copy")
+    setup.add_argument("--from", dest="source", required=True)
+    setup.add_argument("--server", required=True)
+    setup.add_argument("--replace", action="store_true")
+    setup.set_defaults(func=cmd_mt4_setup)
+
+    compile_cmd = mt4_commands.add_parser("compile", help="compile the probe EA")
+    compile_cmd.set_defaults(func=cmd_mt4_compile)
+
+    export_cmd = mt4_commands.add_parser("export", help="write MT4 history files")
+    export_cmd.add_argument("--symbol", required=True)
+    export_cmd.add_argument("--from", dest="start", required=True, type=_date_arg)
+    export_cmd.add_argument("--to", dest="end", required=True, type=_date_arg)
+    export_cmd.add_argument("--no-fxt", action="store_true")
+    export_cmd.set_defaults(func=cmd_mt4_export)
+
+    inspect = mt4_commands.add_parser("inspect-fxt", help="decode an FXT file")
+    inspect.add_argument("file")
+    inspect.set_defaults(func=cmd_mt4_inspect_fxt)
+
+    run_cmd = mt4_commands.add_parser("run", help="run the probe in the tester")
+    run_cmd.add_argument("--symbol", required=True)
+    run_cmd.add_argument("--from", dest="start", required=True, type=_date_arg)
+    run_cmd.add_argument("--to", dest="end", required=True, type=_date_arg)
+    run_cmd.add_argument("--spread", type=int, default=30)
+    run_cmd.add_argument("--timeout", type=float, default=600)
+    run_cmd.set_defaults(func=cmd_mt4_run)
+
+    check = mt4_commands.add_parser("check-ticks", help="compare probe ticks with the store")
+    check.add_argument("--symbol", required=True)
+    check.add_argument("--from", dest="start", required=True, type=_date_arg)
+    check.add_argument("--to", dest="end", required=True, type=_date_arg)
+    check.set_defaults(func=cmd_mt4_check_ticks)
 
     return parser
 
@@ -369,6 +412,106 @@ def cmd_ticks_status(args: argparse.Namespace) -> int:
     print("days: " + ", ".join(f"{status}={count}" for status, count in sorted(counts.items())))
     print(f"total ticks: {total_ticks}")
     print(f"disk size: {disk_size / (1024 * 1024):.2f} MB")
+    return 0
+
+
+def _copy_root() -> Path:
+    return mt4_copy.copy_target(resolve_data_root())
+
+
+def cmd_mt4_setup(args: argparse.Namespace) -> int:
+    target = _copy_root()
+    try:
+        copied = mt4_copy.setup_copy(Path(args.source), args.server, target, replace=args.replace)
+    except (mt4_copy.SetupError, OSError) as exc:
+        print(f"setup failed: {exc}", file=sys.stderr)
+        return 2
+    for name, size in copied:
+        print(f"{name}  {size} bytes")
+    print(f"copy: {target}")
+    return 0
+
+
+def cmd_mt4_compile(args: argparse.Namespace) -> int:
+    copy_root = _copy_root()
+    try:
+        output = mt4_compile.compile_probe(copy_root)
+    except (mt4_compile.CompileError, OSError) as exc:
+        print(f"compile failed: {exc}", file=sys.stderr)
+        return 2
+    print(output)
+    return 0
+
+
+def cmd_mt4_export(args: argparse.Namespace) -> int:
+    symbol = args.symbol.upper()
+    copy_root = _copy_root()
+    try:
+        result = mt4_export.export_range(
+            _store(symbol),
+            copy_root,
+            symbol,
+            args.start,
+            args.end,
+            no_fxt=args.no_fxt,
+        )
+    except (mt4_export.ExportError, OSError) as exc:
+        print(f"export failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"hst: {result['hst']}")
+    print(f"bars: {result['bars']}")
+    print(f"export seconds: {result['seconds']:.3f}")
+    return 0
+
+
+def cmd_mt4_inspect_fxt(args: argparse.Namespace) -> int:
+    try:
+        print(mt4_fxt.inspect_fxt(Path(args.file)))
+    except OSError as exc:
+        print(f"inspect failed: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def cmd_mt4_run(args: argparse.Namespace) -> int:
+    try:
+        result = mt4_run.run_tester(
+            _copy_root(), args.symbol.upper(), args.start, args.end, args.spread, args.timeout
+        )
+    except (mt4_run.RunError, OSError) as exc:
+        print(f"run failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"seconds: {result.seconds:.3f}")
+    print(f"ended by timeout: {result.timed_out}")
+    print(f"report files: {[str(path) for path in result.report_files]}")
+    print(f"probe info: {result.probe_info}")
+    print(f"probe ticks: {result.probe_ticks}")
+    if result.output:
+        print(result.output)
+    return 0
+
+
+def cmd_mt4_check_ticks(args: argparse.Namespace) -> int:
+    symbol = args.symbol.upper()
+    probe = _copy_root() / "tester" / "files" / mt4_run.PROBE_TICKS
+    try:
+        comparison = mt4_check.check_probe_ticks(
+            _store(symbol), probe, symbol, args.start, args.end
+        )
+    except (OSError, ValueError) as exc:
+        print(f"check failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"ticks in store: {comparison.store_ticks}")
+    print(f"ticks probe given: {comparison.probe_ticks}")
+    print(f"ticks skipped at start: {comparison.skipped_start}")
+    print(f"ticks skipped at end: {comparison.skipped_end}")
+    print(f"time differences: {comparison.time_differences}")
+    print(f"bid differences: {comparison.bid_differences}")
+    for store_row, probe_row in comparison.first_differences:
+        print(f"first difference: store={store_row} probe={probe_row}")
+    print(f"smallest ask-bid: {comparison.min_spread}")
+    print(f"largest ask-bid: {comparison.max_spread}")
+    print(f"RESULT: {'identical' if comparison.identical else 'different'}")
     return 0
 
 

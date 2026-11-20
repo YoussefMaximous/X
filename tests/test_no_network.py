@@ -3,6 +3,7 @@
 
 import json
 import socket
+import struct
 import subprocess
 import tomllib
 from datetime import UTC, date, datetime
@@ -33,7 +34,10 @@ APPROVED_IMPORTS = frozenset(
     pyarrow pyarrow.compute pyarrow.csv pyarrow.parquet
     """.split()
 )
-SUBPROCESS_ALLOWED = {"src/losslens/ticks/dukascopy.py": 1}
+SUBPROCESS_ALLOWED = {
+    "src/losslens/ticks/dukascopy.py": 1,
+    "src/losslens/mt4/programs.py": 1,
+}
 
 
 def _src_files():
@@ -326,6 +330,43 @@ def test_only_sync_can_start_a_process(tmp_path, monkeypatch):
     assert (
         main(
             [
+                "mt4",
+                "export",
+                "--symbol",
+                "XAUUSD",
+                "--from",
+                "2026-03-03",
+                "--to",
+                "2026-03-03",
+                "--no-fxt",
+            ]
+        )
+        == 0
+    )
+    fxt_path = tmp_path / "inspect.fxt"
+    fxt_path.write_bytes(b"\0" * 728 + b"\0" * 56)
+    assert main(["mt4", "inspect-fxt", str(fxt_path)]) == 0
+    probe = tmp_path / "mt4" / "terminal" / "tester" / "files"
+    probe.mkdir(parents=True, exist_ok=True)
+    (probe / "losslens_probe_ticks.bin").write_bytes(struct.pack("<qddqq", 0, 0.0, 0.0, 0, 0))
+    assert (
+        main(
+            [
+                "mt4",
+                "check-ticks",
+                "--symbol",
+                "XAUUSD",
+                "--from",
+                "2026-03-03",
+                "--to",
+                "2026-03-03",
+            ]
+        )
+        == 0
+    )
+    assert (
+        main(
+            [
                 "ticks",
                 "import",
                 "--symbol",
@@ -392,7 +433,9 @@ def test_text_scan_skips_only_root_place_folders(tmp_path):
 
 
 def test_repository_has_no_ea_files_outside_mql4():
-    problems = guard.check_ea_files(guard.repository_root())
+    problems = guard.check_ea_files(
+        guard.repository_root(), frozenset({"mql4/Experts/LossLensProbe.mq4"})
+    )
     assert not problems, "EA-file rule 2i failed:\n" + "\n".join(problems)
 
 
@@ -407,13 +450,20 @@ def test_ea_file_scanner_flags_bad_and_accepts_good(tmp_path):
     )
     (tmp_path / "data").mkdir()
     (tmp_path / "data" / "my_ea.ex4").write_text("// ea", encoding="utf-8")
-    (tmp_path / "mql4").mkdir()
-    (tmp_path / "mql4" / "x.mq4").write_text("// ours", encoding="utf-8")
+    (tmp_path / "mql4" / "Experts").mkdir(parents=True)
+    (tmp_path / "mql4" / "Experts" / "LossLensProbe.mq4").write_text("// ours", encoding="utf-8")
+    (tmp_path / "mql4" / "Other.mq4").write_text("// unlisted", encoding="utf-8")
+    (tmp_path / "mql4" / "Compiled.ex4").write_text("// compiled", encoding="utf-8")
 
-    problems = guard.check_ea_files(tmp_path)
+    problems = guard.check_ea_files(tmp_path, frozenset({"mql4/Experts/LossLensProbe.mq4"}))
 
-    assert len(problems) == 3
-    assert any("scratch/x.mq4" in problem for problem in problems)
-    assert any("docs/build/my_ea.ex4" in problem for problem in problems)
-    assert any(".teams/teams/builder/work/my_ea.ex4" in problem for problem in problems)
+    assert len(problems) == 5
+    for relative in (
+        "scratch/x.mq4",
+        "docs/build/my_ea.ex4",
+        ".teams/teams/builder/work/my_ea.ex4",
+        "mql4/Other.mq4",
+        "mql4/Compiled.ex4",
+    ):
+        assert any(problem.startswith(relative + ":") for problem in problems)
     assert all("EA files do not belong in this folder" in problem for problem in problems)
