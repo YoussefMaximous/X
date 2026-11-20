@@ -156,6 +156,21 @@ def test_start_file_constants_and_checker():
     assert startfile.check_start_file(valid) == [], (
         "src/losslens/mt4/startfile.py: rule 3d: builder and checker disagree"
     )
+    assert startfile.check_start_file(valid.replace("[Common]\n", "")), (
+        "src/losslens/mt4/startfile.py: rule 3d: missing [Common] was not refused"
+    )
+    assert startfile.check_start_file(valid.replace("[Tester]\n", "")), (
+        "src/losslens/mt4/startfile.py: rule 3d: missing [Tester] was not refused"
+    )
+    fixed_under_tester = valid.replace("ExpertsTrades=false\n", "").replace(
+        "[Tester]\n", "[Tester]\nExpertsTrades=false\n"
+    )
+    assert startfile.check_start_file(fixed_under_tester), (
+        "src/losslens/mt4/startfile.py: rule 3d: fixed line under [Tester] was not refused"
+    )
+    assert startfile.check_start_file(valid + "[Other]\n"), (
+        "src/losslens/mt4/startfile.py: rule 3d: unknown section was not refused"
+    )
     for bad_line in (
         "Login=1",
         "Server=ICMarketsSC-Demo04",

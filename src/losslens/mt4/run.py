@@ -54,7 +54,7 @@ def run_tester(
     try:
         result = run_program(
             copy_root / "terminal.exe",
-            ["/portable", START_FILE],
+            ["/portable", f"/config:{start_file.resolve()}"],
             copy_root=copy_root,
             timeout=timeout,
         )

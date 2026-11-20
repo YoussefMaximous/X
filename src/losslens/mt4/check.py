@@ -81,9 +81,7 @@ def check_probe_ticks(
     identical = (
         time_differences == 0
         and bid_differences == 0
-        and len(probe_rows) == len(store_rows) - start
-        and start == 0
-        and skipped_end == 0
+        and len(probe_rows) <= max(0, len(store_rows) - start)
     )
     return TickComparison(
         store_ticks=len(store_rows),

@@ -42,7 +42,7 @@ def inspect_fxt(path: Path) -> str:
         f"records: {count}",
         "header fields:",
     ]
-    for offset in range(0, min(layout.header_size, 64), 4):
+    for offset in range(0, layout.header_size, 4):
         raw = data[offset : offset + 4]
         integer = struct.unpack_from("<i", raw)[0]
         lines.append(f"  {offset:4d}: {raw.hex()}  int={integer}")
