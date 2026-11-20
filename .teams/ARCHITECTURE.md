@@ -28,7 +28,7 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 | Run store | Runs, trades, journal events, decisions, findings, notes. | DuckDB file |
 | Defect engine | Reconciles the run with the ticks, computes per-trade measurements once, then runs every detector. | Python |
 | Detectors | One file per defect, discovered automatically. Catalogue in `.teams/DEFECTS.md`. | Python |
-| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
+| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. On open it tops up the tick store in the background (`ticks sync` up to now), shows how fresh the data is, and offers one button to run the EA over the new days. It never re-runs the EA by itself. | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
 | MT4 bridge | Small EA on an MT4 chart that reads a command file and jumps to a time, then draws the trade. | MQL4 |
 
 ## Detector contract (D-8)
@@ -77,7 +77,7 @@ Adding a defect must be a small, safe, self-contained job that the expert can ha
 2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits.
 3. Full-year run, reconciliation, measurements, the detector contract and the first ten detectors.
 4. The rest of catalogue v1, each with tests.
-5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence.
+5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence, tick top-up on open.
 6. MT4 jump.
 7. Ship: private GitHub repository, one-step setup on the expert's PC, `CLAUDE.md`, the add-a-defect recipe proven by adding one through Claude Code.
 8. What-if lab, version compare, review notes, team report, backtest-versus-demo comparison.

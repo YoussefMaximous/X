@@ -80,3 +80,10 @@ Why: The user's choice.
 Alternatives rejected: asking the expert now.
 Supersedes: none
 Decided by: user
+
+## D-12 · 2026-11-20 · ALL
+Decision: When the app opens it tops up the tick store to the present in the background and shows the data's freshness. Running the EA over the new days is one button, never automatic. Built in the app increment; inc-1's `ticks sync` already provides the top-up.
+Why: The user wants the data current whenever the tool opens. Measured 2026-11-20: today's ticks were available to within 5 seconds of the present. An MT4 run takes real time and should not start unasked.
+Alternatives rejected: re-running the EA on every open: slow, and surprising. A live streaming feed into the app: not a live monitor (non-goal).
+Supersedes: none
+Decided by: user (top-up on open), Lead (EA run stays manual)
