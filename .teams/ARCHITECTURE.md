@@ -22,14 +22,32 @@ Dukascopy / any CSV ──> Tick store ──> MT4 history export ──> MT4 St
 | Tick store | One Parquet file per UTC day, plus a manifest. Single read API `read_ticks(symbol, from_ms, to_ms)`. | Python, pyarrow, DuckDB |
 | Downloader | Day-by-day sync from Dukascopy, resumable. | `dukascopy-node` 1.51.1 (pinned), called from Python |
 | MT4 export | Writes MT4 history from the tick store with the broker's server-time offset. | Python |
-| Runner | Starts the MT4 tester from a config file, waits, collects the report and the journal. A seam: `mt4-native` first; `tick-data-suite`, `mt5` or `csv-import` can be added without touching the rest. | Python + MT4 |
+| Runner | Starts the MT4 tester from a config file, waits, collects the report and the journal. A seam: `mt4-native` first; `tick-data-suite`, `mt5` or `csv-import` can be added without touching the rest. Two modes, same machinery: **quick run** and **analysed run** (see "One software, two uses"). | Python + MT4 |
 | Reference EA | Test EA with source, many trades a day, several rule gates, writes a decision log. Stands in until the expert's EA is plugged in. | MQL4 |
 | EA profile | Small file where the expert states what the EA is meant to do (hours, max lot, max positions, risk per trade). Lets rule-breaking be detected even for compiled EAs. | TOML |
 | Run store | Runs, trades, journal events, decisions, findings, notes. | DuckDB file |
 | Defect engine | Reconciles the run with the ticks, computes per-trade measurements once, then runs every detector. | Python |
 | Detectors | One file per defect, discovered automatically. Catalogue in `.teams/DEFECTS.md`. | Python |
-| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. On open it tops up the tick store in the background (`ticks sync` up to now), shows how fresh the data is, and offers one button to run the EA over the new days. It never re-runs the EA by itself. | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
+| App | Defect list, filters, saved views, money ranking, calendar, tick replay with the evidence drawn on it, what-if, version compare. On open it tops up the tick store in the background (`ticks sync` up to now), shows how fresh the data is, and offers one button to run the EA over the new days. It never re-runs the EA by itself. Also holds the **Run** screen (pick EA, settings and any date range, then quick run or analysed run) and the **Data** screen (calendar of which days are stored, with the "Download missing days" button). | FastAPI + React/TypeScript; charts: lightweight-charts and uPlot (provisional, D-5) |
 | MT4 bridge | An MT4 **indicator** (not an EA) on a chart that reads a command file, jumps to a time and draws the trade. MT4 does not let indicators place orders. | MQL4 |
+
+## One software, two uses (D-16)
+
+It is one program with one Run screen. The expert uses it in two ways: he lets it find the defects and jumps to them, or he picks a period and looks through it in MT4 with his own eyes. The second use must never force the first: no defect list, no analysis, nothing in his way.
+
+- **Quick run.** The expert picks an EA, its settings and any date range (a day, three weeks, a month, a set of days, the year). The software checks the ticks for that range are stored, prepares MT4's history for exactly that range, starts the Strategy Tester on it, and leaves MT4 open with the result so he inspects it by hand, the way he does today. Visual mode is a tick box. No defect analysis runs.
+- **Analysed run.** The same, followed by reconciliation and every detector.
+- **A quick run can be analysed later** with one button, without running MT4 again, because its trades and journal are captured either way.
+- **Both modes are Strategy Tester only** (D-14). Neither attaches an EA to a chart.
+- **Missing ticks never pass silently.** If the chosen range has days that are not stored, the run does not start; it names the days and offers the download button.
+- **Prepared history is reused.** A range that was prepared before starts without being rebuilt, so repeat runs are fast.
+- To confirm in inc-2: that MT4 can be left open on the finished test, and that visual mode can be switched on, from the start file.
+
+## Tick data controls (D-16)
+
+- **Data screen:** a calendar of the year, one cell per day: stored, partial (today), empty (weekend or holiday), or missing.
+- **"Download missing days" button:** fetches every missing or partial day from Dukascopy through `dukascopy-node`, oldest first, with a progress bar and a stop button. Stopping loses nothing; pressing again continues. It is `ticks sync` from inc-1 behind a button.
+- The top-up on open (D-12) stays: it covers the newest days automatically, and the button covers any gap.
 
 ## Detector contract (D-8)
 
@@ -88,10 +106,10 @@ Limit, stated plainly: these layers stop mistakes and careless changes. They can
 ## Increment sequence
 
 1. Tick store (no MT4 needed).
-2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits. The no-live-trading guard test and the tester-only runner arrive here, with the first MT4 code.
+2. MT4 run spike: one month end to end with the reference EA; measure MT4's limits. Quick run from the command line for any date range. The no-live-trading guard test and the tester-only runner arrive here, with the first MT4 code.
 3. Full-year run, reconciliation, measurements, the detector contract and the first ten detectors.
 4. The rest of catalogue v1, each with tests.
-5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence, tick top-up on open.
+5. App v1: defect list, filters, saved views, money ranking, calendar, tick replay with evidence, tick top-up on open, the Run screen (quick and analysed runs) and the Data screen (coverage calendar, "Download missing days").
 6. MT4 jump.
 7. Ship: private GitHub repository, one-step setup on the expert's PC, `CLAUDE.md`, the add-a-defect recipe proven by adding one through Claude Code.
 8. What-if lab, version compare, review notes, team report, backtest-versus-demo comparison.

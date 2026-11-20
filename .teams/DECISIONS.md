@@ -108,3 +108,10 @@ Why: The user requires that the tool does not look or behave like something gene
 Alternatives rejected: leaving quality to each brief: the bar drifts. Polishing at the end: structure and speed cannot be added afterwards.
 Supersedes: none
 Decided by: user (the requirement), Lead (the bar)
+
+## D-16 · 2026-11-20 · ALL
+Decision: One software, two uses. Besides finding defects, the expert can pick any date range (a day, weeks, a month, a set of days, the year) and have that range opened in the MT4 Strategy Tester on our ticks to inspect by eye, with no defect analysis ("quick run"). A quick run can be analysed afterwards with one button. A Data screen shows which days are stored, and a "Download missing days" button fetches the gaps from Dukascopy through `dukascopy-node`. Details in ARCHITECTURE.md.
+Why: The user's requirement: the expert sometimes wants to run a few weeks and detect things visually, as he does today, and wants a manual button for missing data. Both reuse the runner and `ticks sync`, so they cost little.
+Alternatives rejected: a separate tool for manual runs: two programs to install and keep in step. Always analysing: gets in his way when he only wants to look.
+Supersedes: none (D-12's top-up on open stays; D-14 applies to both uses: Strategy Tester only)
+Decided by: user

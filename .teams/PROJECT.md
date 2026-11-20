@@ -12,6 +12,8 @@ The team's EA expert runs any MT4 expert advisor over a full year of real ticks,
 ## Done for this phase
 - One command syncs XAUUSD 2026 ticks from Dukascopy (year to date, topped up through 31 Dec 2026) into a validated local store. Any other tick file can be imported.
 - One action runs an EA in the MT4 Strategy Tester over the whole period and captures every trade and the tester journal.
+- Quick run: the expert picks any date range and the software opens that range in the MT4 Strategy Tester on our ticks for manual inspection, with no defect analysis (D-16). It can be analysed afterwards with one button.
+- A Data screen shows which days are stored, and one button downloads every missing day from Dukascopy.
 - Every detector in `.teams/DEFECTS.md` (catalogue v1) runs automatically on the result. Every finding stores the numbers that triggered it.
 - A new defect is added by creating one file plus its tests, following `docs/ADDING_A_DEFECT.md`. Proven by adding one through Claude Code with a one-sentence request.
 - A fast local app lists defects, filters them any way the expert likes (saved views), ranks defect types by money, and replays the ticks of any trade with the proof drawn on it.
