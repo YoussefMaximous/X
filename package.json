@@ -1,0 +1,8 @@
+{
+  "name": "loss-lens-tools",
+  "private": true,
+  "description": "Pinned command-line tools used by loss-lens",
+  "dependencies": {
+    "dukascopy-node": "1.51.1"
+  }
+}

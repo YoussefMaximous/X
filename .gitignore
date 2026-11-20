@@ -1,0 +1,11 @@
+data/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.tmp
+.dukascopy-cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
