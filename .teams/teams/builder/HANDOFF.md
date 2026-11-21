@@ -42,4 +42,4 @@ Expected: 88 tests pass; tools exit 0; export reports 554,076 records and a 31,0
 
 ## Next step
 
-Lead runs the corrected FXT and answers Q6/Q7 from that run.
+The Lead ran the corrected file. MT4 still rebuilt it. Do not start part C. Wait for the next brief.
