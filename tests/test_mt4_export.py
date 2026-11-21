@@ -1,5 +1,5 @@
 import struct
-from datetime import datetime
+from datetime import date, datetime
 
 import pyarrow as pa
 
@@ -91,7 +91,9 @@ def test_fxt_bytes_for_five_ticks_across_two_minutes():
     ]
     template = bytes([0xAA]) * export.FXT_HEADER_SIZE
 
-    result = export.build_fxt_for_table(_table(rows), 30, template, 2)
+    result = export.build_fxt_for_table(
+        _table(rows), 30, template, 2, date(2026, 3, 3), date(2026, 3, 3)
+    )
 
     first_bar = export.server_seconds(_ms("2026-03-03T10:00:00Z") // 1000)
     last_bar = export.server_seconds(_ms("2026-03-03T10:01:00Z") // 1000)
@@ -102,8 +104,8 @@ def test_fxt_bytes_for_five_ticks_across_two_minutes():
     struct.pack_into("<i", expected_header, 220, first_bar)
     struct.pack_into("<i", expected_header, 224, last_bar)
     struct.pack_into("<i", expected_header, 252, 30)
-    struct.pack_into("<i", expected_header, 472, first_tick)
-    struct.pack_into("<i", expected_header, 476, last_tick + 1)
+    struct.pack_into("<i", expected_header, 472, 1772496000)
+    struct.pack_into("<i", expected_header, 476, 1772582400)
     expected_records = [
         (first_bar, 2650.12, 2650.12, 2650.12, 2650.12, 1, first_tick, 0),
         (first_bar, 2650.12, 2650.13, 2650.12, 2650.13, 2, first_tick, 0),

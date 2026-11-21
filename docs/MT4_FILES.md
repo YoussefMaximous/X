@@ -60,9 +60,10 @@ Expected header: 728 bytes. Expected record: 56 bytes.
 | 48 | 4 | int32 | current tick time, server time, seconds | not confirmed |
 | 52 | 4 | int32 | flag | not confirmed |
 
-Our `mt4 export` writes only the HST until the FXT layout has been measured in
-a real run; it refuses to write an invented FXT header and says to use
-`--no-fxt`.
+Our `mt4 export` writes the FXT using the measured header. The header fields
+we change are 216 (minute bars), 220/224 (first/last bar server time), 252
+(spread), and 472/476 (00:00 UTC on `--from` and on the day after `--to`). The
+record fields above are written from the tick store.
 
 ## What blocked the measurement
 
