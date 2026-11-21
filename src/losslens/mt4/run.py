@@ -36,8 +36,12 @@ def run_tester(
     to_day: date,
     spread: int,
     timeout: float,
+    *,
+    visual: bool = False,
 ) -> RunResult:
-    start_text = build_start_file(symbol, from_day, to_day + timedelta(days=1), spread)
+    start_text = build_start_file(
+        symbol, from_day, to_day + timedelta(days=1), spread, visual=visual
+    )
     start_file = copy_root / START_FILE
     start_file.write_text(start_text, encoding="utf-8", newline="\n")
 

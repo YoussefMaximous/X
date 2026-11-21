@@ -42,6 +42,7 @@ def build_start_file(
     to_day_exclusive: date,
     spread: int,
     expert: str = "LossLensProbe",
+    visual: bool = False,
 ) -> str:
     lines = [
         "[Common]",
@@ -59,7 +60,7 @@ def build_start_file(
         r"TestReport=tester\losslens_report",
         "TestReplaceReport=true",
         "TestShutdownTerminal=true",
-        "TestVisualEnable=false",
+        f"TestVisualEnable={'true' if visual else 'false'}",
     ]
     return "\n".join(lines) + "\n"
 

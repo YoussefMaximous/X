@@ -20,11 +20,13 @@ from .mt4 import copy as mt4_copy
 from .mt4 import export as mt4_export
 from .mt4 import fxt as mt4_fxt
 from .mt4 import run as mt4_run
+from .playground import PlaygroundError, build_playground
 from .ticks import dukascopy, importer, quality
 from .ticks.store import (
     DONE_STATUSES,
     TickStore,
     classify_status,
+    iso_utc,
     make_entry,
     read_ticks,
     resolve_data_root,
@@ -122,6 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_cmd.add_argument("--to", dest="end", required=True, type=_date_arg)
     run_cmd.add_argument("--spread", type=int, default=30)
     run_cmd.add_argument("--timeout", type=float, default=600)
+    run_cmd.add_argument(
+        "--visual",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="show MT4's visual tester chart; much slower (default: off)",
+    )
     run_cmd.set_defaults(func=cmd_mt4_run)
 
     check = mt4_commands.add_parser("check-ticks", help="compare probe ticks with the store")
@@ -129,6 +137,19 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--from", dest="start", required=True, type=_date_arg)
     check.add_argument("--to", dest="end", required=True, type=_date_arg)
     check.set_defaults(func=cmd_mt4_check_ticks)
+
+    playground = commands.add_parser("playground", help="local tick playground page")
+    playground_commands = playground.add_subparsers(dest="playground_command", required=True)
+    build = playground_commands.add_parser(
+        "build", help="write one self-contained Playground HTML file"
+    )
+    build.add_argument("--symbol", required=True)
+    build.add_argument("--day", required=True, type=_date_arg)
+    build.add_argument("--from", dest="start", type=_hhmm_arg, default=0)
+    build.add_argument("--to", dest="end", type=_hhmm_arg, default=60)
+    build.add_argument("--out", required=True)
+    build.add_argument("--max-ticks", type=int, default=50_000)
+    build.set_defaults(func=cmd_playground_build)
 
     return parser
 
@@ -367,6 +388,29 @@ def cmd_ticks_query(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_playground_build(args: argparse.Namespace) -> int:
+    symbol = args.symbol.upper()
+    try:
+        result = build_playground(
+            _store(symbol),
+            symbol,
+            args.day,
+            args.start,
+            args.end,
+            Path(args.out),
+            args.max_ticks,
+        )
+    except PlaygroundError as exc:
+        print(f"playground: {exc}", file=sys.stderr)
+        return 2
+    print(f"playground: {result.path}")
+    print(f"ticks: {result.ticks}")
+    print(f"first tick: {iso_utc(result.first_ts_ms)}")
+    print(f"last tick: {iso_utc(result.last_ts_ms)}")
+    print(f"bytes: {result.bytes_written}")
+    return 0
+
+
 def cmd_ticks_import(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
     store = _store(symbol)
@@ -479,12 +523,19 @@ def cmd_mt4_inspect_fxt(args: argparse.Namespace) -> int:
 def cmd_mt4_run(args: argparse.Namespace) -> int:
     try:
         result = mt4_run.run_tester(
-            _copy_root(), args.symbol.upper(), args.start, args.end, args.spread, args.timeout
+            _copy_root(),
+            args.symbol.upper(),
+            args.start,
+            args.end,
+            args.spread,
+            args.timeout,
+            visual=args.visual,
         )
     except (mt4_run.RunError, OSError) as exc:
         print(f"run failed: {exc}", file=sys.stderr)
         return 2
     print(f"seconds: {result.seconds:.3f}")
+    print(f"visual mode: {'on' if args.visual else 'off'}")
     print(f"ended by timeout: {result.timed_out}")
     print(f"report files: {[str(path) for path in result.report_files]}")
     print(f"probe info: {result.probe_info}")
@@ -531,6 +582,18 @@ def _date_arg(text: str) -> date:
         return date.fromisoformat(text)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(f"expected YYYY-MM-DD, got {text!r}") from exc
+
+
+def _hhmm_arg(text: str) -> int:
+    try:
+        hour_text, minute_text = text.split(":", 1)
+        hour = int(hour_text)
+        minute = int(minute_text)
+    except (AttributeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(f"expected HH:MM in UTC, got {text!r}") from exc
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        raise argparse.ArgumentTypeError(f"expected HH:MM between 00:00 and 23:59, got {text!r}")
+    return hour * 60 + minute
 
 
 def _iso_to_ms(text: str) -> int:
