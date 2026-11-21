@@ -567,10 +567,11 @@ def cmd_mt4_parse_report(args: argparse.Namespace) -> int:
 
 
 def cmd_mt4_run(args: argparse.Namespace) -> int:
+    symbol = args.symbol.upper()
     try:
         result = mt4_run.run_tester(
             _copy_root(),
-            args.symbol.upper(),
+            symbol,
             args.start,
             args.end,
             args.spread,
@@ -586,6 +587,21 @@ def cmd_mt4_run(args: argparse.Namespace) -> int:
     print(f"report files: {[str(path) for path in result.report_files]}")
     print(f"probe info: {result.probe_info}")
     print(f"probe ticks: {result.probe_ticks}")
+    if result.report is None:
+        print("report: not found")
+    else:
+        print(f"report ticks: {result.report.ticks_modelled}")
+        print(f"report bars: {result.report.bars}")
+        try:
+            comparison = mt4_check.check_report(
+                _store(symbol), result.report, symbol, args.start, args.end
+            )
+        except (mt4_export.ExportError, OSError) as exc:
+            print(f"report check skipped: {exc}", file=sys.stderr)
+        else:
+            print(f"store ticks: {comparison.store_ticks}")
+            print(f"store bars: {comparison.store_bars}")
+            print(f"RESULT: {'identical' if comparison.identical else 'different'}")
     if result.output:
         print(result.output)
     return 0

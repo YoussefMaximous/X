@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .programs import ProgramTimeout, UnsafeProgramError, run_program
+from .report import ReportError, TesterReport, parse_report
 from .startfile import build_start_file
 
 START_FILE = "losslens_start.ini"
@@ -27,6 +28,7 @@ class RunResult:
     probe_info: Path | None
     probe_ticks: Path | None
     output: str
+    report: TesterReport | None
 
 
 def run_tester(
@@ -71,6 +73,13 @@ def run_tester(
     seconds = time.perf_counter() - started
     tester = copy_root / "tester"
     report_files = sorted(tester.glob("losslens_report*")) if tester.is_dir() else []
+    parsed_report: TesterReport | None = None
+    report_path = tester / "losslens_report.htm"
+    if not timed_out and report_path.is_file():
+        try:
+            parsed_report = parse_report(report_path)
+        except (ReportError, OSError):
+            parsed_report = None
     return RunResult(
         timed_out=timed_out,
         seconds=seconds,
@@ -78,4 +87,5 @@ def run_tester(
         probe_info=info if info.is_file() else None,
         probe_ticks=ticks if ticks.is_file() else None,
         output=output,
+        report=parsed_report,
     )

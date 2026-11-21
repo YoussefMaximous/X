@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 
 from losslens.cli import build_parser
@@ -66,3 +67,33 @@ def test_run_tester_writes_the_visual_setting(tmp_path, monkeypatch):
     assert "TestVisualEnable=true" in text
     assert calls
     assert result.timed_out is False
+    assert result.report is None
+
+
+def test_run_tester_parses_the_report(tmp_path, monkeypatch):
+    copy_root = tmp_path / "copy"
+    (copy_root / "MQL4" / "Experts").mkdir(parents=True)
+    (copy_root / "terminal.exe").write_bytes(b"terminal")
+    (copy_root / "MQL4" / "Experts" / "LossLensProbe.mq4").write_text("// probe", encoding="utf-8")
+    (copy_root / "tester").mkdir()
+    report_text = (Path(__file__).parent / "fixtures" / "mt4_report_probe.htm").read_text(
+        encoding="utf-8"
+    )
+
+    def recorder(*args, **kwargs):
+        (copy_root / "tester" / "losslens_report.htm").write_text(report_text, encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("losslens.mt4.run.run_program", recorder)
+    result = run.run_tester(
+        copy_root,
+        "XAUUSD",
+        date(2026, 3, 3),
+        date(2026, 3, 3),
+        30,
+        2,
+    )
+
+    assert result.report is not None
+    assert result.report.ticks_modelled == 471448
+    assert result.report.bars == 1320
