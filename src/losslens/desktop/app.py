@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 from losslens.mt4.presets import ExpertInput, read_inputs, render_set
 
 from .chart import Bar, ChartData, aggregate, load_chart_data, price_text, time_text
+from .playground import PlaygroundWindow
 
 TF_LABEL = {1: "M1", 5: "M5", 15: "M15", 30: "M30", 60: "H1", 240: "H4", 1440: "D1"}
 CHART_BG = "#000000"
@@ -27,6 +28,7 @@ class XApp(tk.Tk):
         super().__init__()
         self.data = data
         self.inputs = inputs
+        self.playground: PlaygroundWindow | None = None
         self.title("X")
         self.geometry("1400x900")
         self.minsize(900, 600)
@@ -73,6 +75,7 @@ class XApp(tk.Tk):
     def _build_menu(self) -> None:
         menubar = tk.Menu(self)
         file_menu = tk.Menu(menubar, tearoff=False)
+        file_menu.add_command(label="Playground", command=self.open_playground)
         file_menu.add_command(label="Expert Inputs...", command=self.open_inputs)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.destroy)
@@ -101,8 +104,11 @@ class XApp(tk.Tk):
             )
             button.pack(side="left", padx=1, pady=2)
             self.tf_buttons[minutes] = button
-        tk.Button(bar, text="Inputs", width=7, command=self.open_inputs).pack(
+        tk.Button(bar, text="Playground", width=10, command=self.open_playground).pack(
             side="left", padx=(8, 1), pady=2
+        )
+        tk.Button(bar, text="Inputs", width=7, command=self.open_inputs).pack(
+            side="left", padx=1, pady=2
         )
         tk.Label(
             bar,
@@ -454,6 +460,21 @@ class XApp(tk.Tk):
             fill=ASK,
             font=("Tahoma", 8),
         )
+
+    def open_playground(self) -> None:
+        if self.playground is not None and self.playground.winfo_exists():
+            self.playground.deiconify()
+            self.playground.lift()
+            self.playground.focus_set()
+            return
+        self.configure(cursor="watch")
+        self.update_idletasks()
+        try:
+            self.playground = PlaygroundWindow(self, self.data.symbol, self.data.day, self.inputs)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("X", f"Cannot open the Playground: {exc}", parent=self)
+        finally:
+            self.configure(cursor="")
 
     def open_inputs(self) -> None:
         if not self.inputs:
