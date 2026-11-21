@@ -8,7 +8,7 @@ Write the FXT only up to broker midnight after `--to`, so MT4 keeps the file ins
 
 ## State and how to check it
 
-The cutoff is committed locally (`0394ace`; report commit next). No MT4 was started in this job.
+The cutoff is committed locally (`0394ace`; report `3cac3fb`). No MT4 was started in this job.
 
 ```text
 python -m pytest -q
@@ -18,7 +18,7 @@ python -m mypy
 python -m losslens mt4 export --symbol XAUUSD --from 2026-03-03 --to 2026-03-03
 ```
 
-Expected: 89 tests pass; tools exit 0; export reports 1,320 FXT bars, 542,939 records and a 30,405,312-byte read-only file.
+Expected: 95 tests pass; tools exit 0; export reports 1,320 FXT bars, 542,939 records and a 30,405,312-byte read-only file.
 
 ## Done (evidence in the report)
 
@@ -28,6 +28,8 @@ Expected: 89 tests pass; tools exit 0; export reports 1,320 FXT bars, 542,939 re
 - 11,137 late ticks dropped; file 30,405,312 bytes; read-only.
 - New test: one second before the cutoff is present, at the cutoff and after are absent.
 - HST unchanged at 1,380 bars.
+- The cutoff was re-checked byte-for-byte on four dates (2026-03-03, 03-09, 07-15, 11-10): header, every record and file size matched a hand-built expectation.
+- `mt4 run` now takes `--visual / --no-visual` (default off) and writes `TestVisualEnable` from it; three tests cover the default, both flags and the generated start file.
 
 ## Ruled out / do not retry
 
