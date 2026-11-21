@@ -20,6 +20,7 @@ from .mt4 import copy as mt4_copy
 from .mt4 import export as mt4_export
 from .mt4 import fxt as mt4_fxt
 from .mt4 import journal as mt4_journal
+from .mt4 import reconcile as mt4_reconcile
 from .mt4 import report as mt4_report
 from .mt4 import run as mt4_run
 from .playground import PlaygroundError, build_playground
@@ -130,6 +131,13 @@ def build_parser() -> argparse.ArgumentParser:
     parse_journal.add_argument("file")
     parse_journal.add_argument("--tail", type=int, default=20)
     parse_journal.set_defaults(func=cmd_mt4_parse_journal)
+
+    reconcile = mt4_commands.add_parser(
+        "reconcile", help="check report trades exist in the tick store"
+    )
+    reconcile.add_argument("--report", required=True)
+    reconcile.add_argument("--symbol", required=True)
+    reconcile.set_defaults(func=cmd_mt4_reconcile)
 
     run_cmd = mt4_commands.add_parser("run", help="run the probe in the tester")
     run_cmd.add_argument("--symbol", required=True)
@@ -582,6 +590,27 @@ def cmd_mt4_parse_journal(args: argparse.Namespace) -> int:
     tail = max(0, args.tail)
     for line in lines[-tail:] if tail else ():
         print(f"{line.level} {line.time} {line.message}")
+    return 0
+
+
+def cmd_mt4_reconcile(args: argparse.Namespace) -> int:
+    symbol = args.symbol.upper()
+    try:
+        parsed = mt4_report.parse_report(Path(args.report))
+        result = mt4_reconcile.reconcile_trades(_store(symbol), parsed)
+    except (mt4_report.ReportError, mt4_reconcile.ReconcileError, OSError) as exc:
+        print(f"reconcile failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"trades checked: {result.checked}")
+    print(f"found in ticks: {result.found}")
+    print(f"missing: {result.missing}")
+    for check in result.checks:
+        if not check.found:
+            print(
+                f"missing trade {check.ticket}: {check.kind} {check.close_price} "
+                f"at {check.close_time}"
+            )
+    print(f"RESULT: {'reconciled' if result.reconciled else 'not reconciled'}")
     return 0
 
 
