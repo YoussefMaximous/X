@@ -106,3 +106,28 @@ def test_cli_build_app(tmp_path, monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "chart:" in output
     assert out.is_file()
+
+
+def test_build_app_includes_expert_inputs(tmp_path):
+    store = _store(tmp_path)
+    preset = tmp_path / "expert.set"
+    preset.write_text(
+        "Lots=0.10\nLots,1=0.01\nLots,2=0.01\nLots,3=0.10\nStopLoss=50\n",
+        encoding="utf-8",
+    )
+
+    path = build_app(store, "XAUUSD", DAY, tmp_path / "chart.html", preset)
+    html = path.read_text(encoding="utf-8")
+    data = _payload(html)
+
+    assert data["inputs"][0] == {
+        "name": "Lots",
+        "value": "0.10",
+        "start": "0.01",
+        "step": "0.01",
+        "stop": "0.10",
+    }
+    assert data["inputs"][1]["name"] == "StopLoss"
+    assert data["inputs"][1]["start"] is None
+    assert "Expert Inputs" in html
+    assert "Save .set" in html

@@ -30,6 +30,21 @@
   #toolbar button.active { background: var(--accent); border-color: #245786; color: #fff; }
   #toolbar .gap { width: 10px; }
   #toolbar .label { color: var(--muted); margin-left: 4px; }
+  #modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
+  #modal.hidden { display: none; }
+  #dialog { width: 680px; max-width: calc(100vw - 40px); max-height: calc(100vh - 60px); display: flex; flex-direction: column; background: var(--panel); border: 1px solid #777; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+  #dialogtitle { display: flex; align-items: center; padding: 5px 8px; background: var(--accent); color: #fff; font-weight: bold; }
+  #dialogtitle button { margin-left: auto; width: 22px; height: 20px; border: 1px solid #245786; background: #fff; color: #111; cursor: pointer; }
+  #dialogbody { padding: 8px; overflow: auto; }
+  #inputtable { width: 100%; border-collapse: collapse; background: #fff; }
+  #inputtable th, #inputtable td { border: 1px solid #c8c8c8; padding: 3px 5px; text-align: left; }
+  #inputtable th { background: var(--panel-dark); font-weight: normal; }
+  #inputtable input { width: 100%; border: 1px solid #b0b0b0; padding: 2px 4px; font: 11px Tahoma, Arial, sans-serif; }
+  #inputempty { color: var(--muted); padding: 8px 2px; }
+  #dialogfoot { display: flex; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid var(--line); }
+  #dialogfoot .note { margin-right: auto; color: var(--muted); }
+  #dialogfoot button { height: 24px; padding: 0 10px; border: 1px solid #9a9a9a; background: #fbfbfb; font: 11px Tahoma, Arial, sans-serif; cursor: pointer; }
+  #dialogfoot button:hover { background: #e8f1fa; }
   #main { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 0; }
   #watch { background: #fff; border-right: 1px solid var(--line); overflow: hidden; }
   #watch h2 { margin: 0; padding: 5px 7px; font-size: 11px; background: var(--panel-dark); border-bottom: 1px solid var(--line); }
@@ -72,6 +87,7 @@
     <button id="zoomout" title="Zoom out">-</button>
     <button id="zoomin" title="Zoom in">+</button>
     <button id="end" title="Jump to the latest bar">End</button>
+    <button id="openinputs" title="Expert inputs">Inputs</button>
     <span class="label">Wheel zoom · drag to pan · arrows move</span>
   </div>
   <div id="main">
@@ -102,6 +118,23 @@
     <span>Local only · nothing is sent</span>
     <span id="statuscenter"></span>
     <span class="right" id="statusright"></span>
+  </div>
+</div>
+<div id="modal" class="hidden">
+  <div id="dialog">
+    <div id="dialogtitle"><span>Expert Inputs</span><button id="closedialog" title="Close">X</button></div>
+    <div id="dialogbody">
+      <table id="inputtable">
+        <thead><tr><th>Input</th><th>Value</th><th>Start</th><th>Step</th><th>Stop</th></tr></thead>
+        <tbody id="inputrows"></tbody>
+      </table>
+      <div id="inputempty">No inputs loaded. Build the page with --inputs &lt;file.set|file.mq4&gt;.</div>
+    </div>
+    <div id="dialogfoot">
+      <span class="note">Start, Step and Stop are the MT4 optimization range. Leave them empty for a single run.</span>
+      <button id="saveset">Save .set</button>
+      <button id="closedialog2">Close</button>
+    </div>
   </div>
 </div>
 <script>
@@ -447,6 +480,81 @@ document.getElementById('watchtext').innerHTML =
   'Change <span class="' + (change >= 0 ? 'up' : 'down') + '">' + changeText + '</span>';
 terminalbody.textContent = TERMINAL.Journal;
 updateStatus();
+
+const loadedInputs = DATA.inputs || [];
+function buildInputRows() {
+  const body = document.getElementById('inputrows');
+  const empty = document.getElementById('inputempty');
+  body.textContent = '';
+  if (!loadedInputs.length) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  for (const item of loadedInputs) {
+    const row = document.createElement('tr');
+    row.dataset.name = item.name;
+    const cells = [item.name, item.value, item.start || '', item.step || '', item.stop || ''];
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = document.createElement('td');
+      if (index === 0) {
+        cell.textContent = cells[index];
+      } else {
+        const input = document.createElement('input');
+        input.className = ['', 'v', 's1', 's2', 's3'][index];
+        input.value = cells[index];
+        cell.appendChild(input);
+      }
+      row.appendChild(cell);
+    }
+    body.appendChild(row);
+  }
+}
+
+function collectSet() {
+  const lines = ['; saved by loss-lens'];
+  for (const row of document.querySelectorAll('#inputrows tr')) {
+    const name = row.dataset.name;
+    const value = row.querySelector('.v').value;
+    const start = row.querySelector('.s1').value;
+    const step = row.querySelector('.s2').value;
+    const stop = row.querySelector('.s3').value;
+    lines.push(name + '=' + value);
+    if (start || step || stop) {
+      lines.push(name + ',F=0');
+      lines.push(name + ',1=' + (start || '0'));
+      lines.push(name + ',2=' + (step || '0'));
+      lines.push(name + ',3=' + (stop || '0'));
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
+function closeInputs() {
+  document.getElementById('modal').classList.add('hidden');
+}
+
+document.getElementById('openinputs').addEventListener('click', function () {
+  document.getElementById('modal').classList.remove('hidden');
+});
+document.getElementById('closedialog').addEventListener('click', closeInputs);
+document.getElementById('closedialog2').addEventListener('click', closeInputs);
+document.getElementById('modal').addEventListener('click', function (event) {
+  if (event.target.id === 'modal') closeInputs();
+});
+window.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape') closeInputs();
+});
+document.getElementById('saveset').addEventListener('click', function () {
+  const blob = new Blob([collectSet()], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'losslens.set';
+  link.click();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+});
+buildInputRows();
 
 const observer = new ResizeObserver(function () { resize(); });
 observer.observe(canvas.parentElement);

@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 
 from losslens.mt4 import export
+from losslens.mt4.presets import PresetError, read_inputs
 from losslens.ticks.store import TickStore
 
 
@@ -19,6 +20,7 @@ def build_app(
     symbol: str,
     day: date,
     out_path: Path | None = None,
+    inputs_path: Path | None = None,
 ) -> Path:
     code = symbol.upper()
     digits = export.SYMBOL_DECIMALS.get(code)
@@ -33,6 +35,21 @@ def build_app(
         raise AppError(f"{day.isoformat()} has no bars")
     first_utc = int(table["ts_ms"][0].as_py()) // 1000
     last_row = table.num_rows - 1
+    inputs: list[dict[str, str | None]] = []
+    if inputs_path is not None:
+        try:
+            for item in read_inputs(inputs_path):
+                inputs.append(
+                    {
+                        "name": item.name,
+                        "value": item.value,
+                        "start": item.start,
+                        "step": item.step,
+                        "stop": item.stop,
+                    }
+                )
+        except (PresetError, OSError) as exc:
+            raise AppError(f"cannot read inputs: {exc}") from exc
     payload = {
         "symbol": code,
         "day": day.isoformat(),
@@ -42,6 +59,7 @@ def build_app(
         "bid": float(table["bid"][last_row].as_py()),
         "ask": float(table["ask"][last_row].as_py()),
         "bars": bars,
+        "inputs": inputs,
     }
     template = Path(__file__).with_name("template.html").read_text(encoding="utf-8")
     html = template.replace("/*__DATA__*/", json.dumps(payload, separators=(",", ":")))

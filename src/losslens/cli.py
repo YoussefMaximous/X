@@ -21,6 +21,7 @@ from .mt4 import copy as mt4_copy
 from .mt4 import export as mt4_export
 from .mt4 import fxt as mt4_fxt
 from .mt4 import journal as mt4_journal
+from .mt4 import presets as mt4_presets
 from .mt4 import reconcile as mt4_reconcile
 from .mt4 import report as mt4_report
 from .mt4 import run as mt4_run
@@ -101,6 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
     app_build_cmd.add_argument("--symbol", required=True)
     app_build_cmd.add_argument("--day", required=True, type=_date_arg)
     app_build_cmd.add_argument("--out")
+    app_build_cmd.add_argument("--inputs", help="a .set preset or an .mq4 source")
     app_build_cmd.set_defaults(func=cmd_app_build)
 
     status = tick_commands.add_parser("status", help="show what the store covers")
@@ -140,6 +142,10 @@ def build_parser() -> argparse.ArgumentParser:
     parse_journal.add_argument("file")
     parse_journal.add_argument("--tail", type=int, default=20)
     parse_journal.set_defaults(func=cmd_mt4_parse_journal)
+
+    inputs = mt4_commands.add_parser("inputs", help="list an expert's inputs")
+    inputs.add_argument("file")
+    inputs.set_defaults(func=cmd_mt4_inputs)
 
     reconcile = mt4_commands.add_parser(
         "reconcile", help="check report trades exist in the tick store"
@@ -508,8 +514,9 @@ def _copy_root() -> Path:
 def cmd_app_build(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
     out = Path(args.out) if args.out else None
+    inputs = Path(args.inputs) if args.inputs else None
     try:
-        path = app_build.build_app(_store(symbol), symbol, args.day, out)
+        path = app_build.build_app(_store(symbol), symbol, args.day, out, inputs)
     except (app_build.AppError, OSError) as exc:
         print(f"app build failed: {exc}", file=sys.stderr)
         return 2
@@ -612,6 +619,20 @@ def cmd_mt4_parse_journal(args: argparse.Namespace) -> int:
     tail = max(0, args.tail)
     for line in lines[-tail:] if tail else ():
         print(f"{line.level} {line.time} {line.message}")
+    return 0
+
+
+def cmd_mt4_inputs(args: argparse.Namespace) -> int:
+    try:
+        items = mt4_presets.read_inputs(Path(args.file))
+    except (mt4_presets.PresetError, OSError) as exc:
+        print(f"inputs failed: {exc}", file=sys.stderr)
+        return 2
+    for item in items:
+        line = f"{item.name}={item.value}"
+        if item.start is not None or item.step is not None or item.stop is not None:
+            line += f"  [{item.start or '0'} .. {item.stop or '0'} step {item.step or '0'}]"
+        print(line)
     return 0
 
 
