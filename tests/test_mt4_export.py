@@ -124,3 +124,33 @@ def test_fxt_bytes_for_five_ticks_across_two_minutes():
         patched.update(range(offset, offset + 4))
     assert all(result[index] == template[index] for index in range(728) if index not in patched)
     assert len(result) == export.FXT_HEADER_SIZE + 5 * export.FXT_RECORD_SIZE
+
+
+def test_fxt_records_stop_at_broker_midnight():
+    cutoff = 1772582400
+    assert export.server_seconds(_ms("2026-03-03T21:59:58Z") // 1000) == cutoff - 2
+    assert export.server_seconds(_ms("2026-03-03T21:59:59Z") // 1000) == cutoff - 1
+    assert export.server_seconds(_ms("2026-03-03T22:00:00Z") // 1000) == cutoff
+
+    rows = [
+        (_ms("2026-03-03T21:59:58.000Z"), 2650.10),
+        (_ms("2026-03-03T21:59:59.000Z"), 2650.11),
+        (_ms("2026-03-03T22:00:00.000Z"), 2650.12),
+        (_ms("2026-03-03T22:00:01.000Z"), 2650.13),
+    ]
+    template = bytes([0xAA]) * export.FXT_HEADER_SIZE
+
+    result = export.build_fxt_for_table(
+        _table(rows), 30, template, 2, date(2026, 3, 3), date(2026, 3, 3)
+    )
+
+    records = list(struct.iter_unpack(export.FXT_RECORD_FORMAT, result[export.FXT_HEADER_SIZE :]))
+    assert len(records) == 2
+    assert [record[0] for record in records] == [cutoff - 60, cutoff - 60]
+    assert [record[6] for record in records] == [cutoff - 2, cutoff - 1]
+    assert all(record[0] < cutoff and record[6] < cutoff for record in records)
+    assert struct.unpack_from("<i", result, 216)[0] == 1
+    assert struct.unpack_from("<i", result, 220)[0] == cutoff - 60
+    assert struct.unpack_from("<i", result, 224)[0] == cutoff - 60
+    assert struct.unpack_from("<i", result, 472)[0] == 1772496000
+    assert struct.unpack_from("<i", result, 476)[0] == cutoff

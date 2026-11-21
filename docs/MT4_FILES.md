@@ -63,7 +63,9 @@ Expected header: 728 bytes. Expected record: 56 bytes.
 Our `mt4 export` writes the FXT using the measured header. The header fields
 we change are 216 (minute bars), 220/224 (first/last bar server time), 252
 (spread), and 472/476 (00:00 UTC on `--from` and on the day after `--to`). The
-record fields above are written from the tick store.
+record fields above are written from the tick store. The file stops at broker
+midnight after `--to`: no tick at or after field 476 is written, so the bar
+count and first/last bar cover only the bars before that line.
 
 ## What blocked the measurement
 

@@ -166,14 +166,23 @@ def hst_bytes(
 
 
 def date_range_seconds(from_day: date, to_day: date) -> tuple[int, int]:
-    """The two FXT date fields: 00:00 UTC of --from and of the day after --to."""
+    """The two FXT date fields: 00:00 UTC of --from and of the day after --to.
+
+    The end is also the tick cutoff: broker midnight after the last test day,
+    written as a server-clock timestamp.
+    """
     start = (from_day - EPOCH_DATE).days * 86_400
     end = (to_day + timedelta(days=1) - EPOCH_DATE).days * 86_400
     return start, end
 
 
 def _fxt_parts(
-    table: pa.Table, digits: int, spread: int, header_template: bytes
+    table: pa.Table,
+    digits: int,
+    spread: int,
+    header_template: bytes,
+    *,
+    cutoff: int | None = None,
 ) -> tuple[int, int, int, bytearray]:
     if len(header_template) != FXT_HEADER_SIZE:
         raise ExportError("FXT header template is not 728 bytes")
@@ -187,8 +196,10 @@ def _fxt_parts(
     timestamps = table["ts_ms"].to_pylist()
     bids = table["bid"].to_pylist()
     for ts_ms, raw_bid in zip(timestamps, bids, strict=True):
-        bid = round_price(float(raw_bid), digits)
         server = server_seconds(int(ts_ms) // 1000)
+        if cutoff is not None and server >= cutoff:
+            continue
+        bid = round_price(float(raw_bid), digits)
         minute = server - (server % 60)
         if current_minute is None:
             current_minute = minute
@@ -233,16 +244,21 @@ def build_fxt_for_table(
     from_day: date | None = None,
     to_day: date | None = None,
 ) -> bytes:
-    bars, first_bar, last_bar, records = _fxt_parts(table, digits, spread, header_template)
+    start_seconds: int | None = None
+    end_seconds: int | None = None
+    if from_day is not None and to_day is not None:
+        start_seconds, end_seconds = date_range_seconds(from_day, to_day)
+    bars, first_bar, last_bar, records = _fxt_parts(
+        table, digits, spread, header_template, cutoff=end_seconds
+    )
     header = bytearray(header_template)
     struct.pack_into("<i", header, 216, bars)
     struct.pack_into("<i", header, 220, first_bar)
     struct.pack_into("<i", header, 224, last_bar)
     struct.pack_into("<i", header, 252, spread)
-    if from_day is not None and to_day is not None:
-        start, end = date_range_seconds(from_day, to_day)
-        struct.pack_into("<i", header, 472, start)
-        struct.pack_into("<i", header, 476, end)
+    if start_seconds is not None and end_seconds is not None:
+        struct.pack_into("<i", header, 472, start_seconds)
+        struct.pack_into("<i", header, 476, end_seconds)
     return bytes(header) + bytes(records)
 
 
@@ -266,13 +282,14 @@ def export_range(
     fxt_bars = 0
     fxt_records = 0
     fxt_first_bar = fxt_last_bar = 0
+    start_seconds, end_seconds = date_range_seconds(from_day, to_day)
     day = from_day
     while day <= to_day:
         table = _ticks_of_day(store, day, symbol)
         bars.extend(_bars_for_table(table, digits))
         if not no_fxt:
             count, first_bar, last_bar, records = _fxt_parts(
-                table, digits, spread, FXT_HEADER_TEMPLATE
+                table, digits, spread, FXT_HEADER_TEMPLATE, cutoff=end_seconds
             )
             if not fxt_parts:
                 fxt_first_bar = first_bar
@@ -294,7 +311,6 @@ def export_range(
     }
     if not no_fxt:
         header = bytearray(FXT_HEADER_TEMPLATE)
-        start_seconds, end_seconds = date_range_seconds(from_day, to_day)
         struct.pack_into("<i", header, 216, fxt_bars)
         struct.pack_into("<i", header, 220, fxt_first_bar)
         struct.pack_into("<i", header, 224, fxt_last_bar)
