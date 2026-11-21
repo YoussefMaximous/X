@@ -43,4 +43,4 @@ Expected: 88 tests pass; tools exit 0; export reports 1,380 bars, 554,076 FXT re
 
 ## Next step
 
-Lead runs the FXT through MT4 and answers Q6/Q7 from that run.
+The Lead ran the file. MT4 replaced it. Do "Send-back 4 of part B" in `.teams/increments/inc-2.md`: bytes 472 and 476 are 00:00 UTC on the test's from-date and to-date, not the first and last tick. Do not start either MT4. Tell the user "Report inc-2b5 is ready".

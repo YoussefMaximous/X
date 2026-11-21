@@ -590,3 +590,17 @@ Each record is 56 bytes, one per stored tick, in store order: bar time as an 8-b
 **Done when:** the four tools exit 0, and `mt4 export` of 2026-03-03 (no `--no-fxt`) writes a file whose size is 728 plus 56 times 554076.
 
 **Return:** `.teams/teams/builder/work/report-inc-2b4.md` and an updated `HANDOFF.md`. Then run the command above.
+
+## Judgment on send-back 3 (filled in by the Lead, 2026-11-21)
+
+**builder: the file is the size and shape that was asked for. Not accepted as the ticks MT4 uses.** The Lead ran it on the logged-in terminal. Read-only: MT4 logged "file is read-only" and processed 0 ticks. Writable: MT4 replaced the file with its own 26,401,816-byte file and the probe got 471,348 ticks again. The header bytes MT4 changed back were 216, 220, 224, 472 and 476. Bytes 472 and 476 in the file MT4 itself wrote are 1772496000 and 1772582400, which are 00:00 UTC on the test's from-date and to-date. The brief had called them the first and last tick. That was wrong.
+
+## Send-back 4 of part B: the two date fields
+
+Do not start either MT4. Do not open `accounts.ini`. Change only bytes 472 and 476.
+
+Those two fields are the test range at 00:00 UTC: byte 472 is 00:00 UTC on `--from`, byte 476 is 00:00 UTC on the day after `--to`. They are not server time and they are not the first or last tick. For 2026-03-03 to 2026-03-04 that is 1772496000 and 1772582400. A test must check those two numbers. Do not change the bar count or the bar times in this send-back.
+
+**Done when:** the four tools exit 0, and a fresh `mt4 export` of 2026-03-03 has 554,076 records and those two header numbers.
+
+**Return:** `.teams/teams/builder/work/report-inc-2b5.md` and an updated `HANDOFF.md`. Then tell the user: "Report inc-2b5 is ready".
