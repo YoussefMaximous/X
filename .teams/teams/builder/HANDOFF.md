@@ -1,14 +1,14 @@
-# Builder handoff — after inc-2 part B send-back 3
+# Builder handoff — after inc-2 part B send-back 4
 
-Updated: 2026-11-21 · Increment: inc-2 part B send-back 3 · Report: `work/report-inc-2b4.md`
+Updated: 2026-11-21 · Increment: inc-2 part B send-back 4 · Report: `work/report-inc-2b5.md`
 
 ## Goal
 
-Write our stored ticks into the measured MT4 FXT layout, using the header MT4 itself wrote.
+Write the two FXT date fields correctly: 00:00 UTC on `--from` and on the day after `--to`.
 
 ## State and how to check it
 
-The FXT writer is committed locally (`a6e54f1`; report commit next). No MT4 was started in this job.
+The fix is committed locally (`6b8bdc5`; report commit next). The other agent's earlier edit was already reverted before this job; the tree was clean at `ef4597b`.
 
 ```text
 python -m pytest -q
@@ -18,29 +18,28 @@ python -m mypy
 python -m losslens mt4 export --symbol XAUUSD --from 2026-03-03 --to 2026-03-03
 ```
 
-Expected: 88 tests pass; tools exit 0; export reports 1,380 bars, 554,076 FXT records and a 31,028,984-byte read-only file.
+Expected: 88 tests pass; tools exit 0; export reports 554,076 records and a 31,028,984-byte file.
 
 ## Done (evidence in the report)
 
-- FXT header template is exactly the measured 728-byte header; only the six specified integers are changed.
-- One 56-byte record per stored tick: minute bar time, OHLC state so far, volume so far, tick server second, zero flag.
-- 2026-03-03 export: 554,076 records; 31,028,984 bytes; file read-only.
-- Five-tick test checks all six header fields and all five records against hand-built bytes.
-- `--no-fxt` still writes only the HST.
+- Header 472 = 1772496000 (2026-03-03 00:00 UTC).
+- Header 476 = 1772582400 (2026-03-04 00:00 UTC, day after `--to`).
+- Bar count 1,380, bar times 1772503200/1772589540, spread 30 unchanged.
+- File size 31,028,984 = 728 + 554,076 × 56; read-only.
+- Five-tick test checks the two date fields and every unpatched header byte.
 - No MT4 started, no `accounts.ini` opened, no login typed.
 
 ## Ruled out / do not retry
 
-- Inventing a header: the measured header is embedded byte-for-byte.
-- Writing records for minutes rather than ticks: the count is 554,076, not 1,380.
-- Starting MT4 to test the file: the Lead runs that.
+- Using server time or the first/last tick for 472/476: both were wrong; MT4 restored UTC date bounds.
+- Changing bar count or bar times in this send-back: not done.
+- Starting MT4 to test: the Lead runs it.
 
 ## Open
 
-- Whether MT4 accepts and uses this FXT is the Lead's run; Q6/Q7 are not re-measured here.
-- The copy still has no account; the user/Lead decides if it gets one.
+- Whether MT4 accepts the corrected file is the Lead's run.
 - `data/` (including the copy and measured file) is ignored; no `.fxt`/`.hst`/program is tracked.
 
 ## Next step
 
-The Lead ran the file. MT4 replaced it. Do "Send-back 4 of part B" in `.teams/increments/inc-2.md`: bytes 472 and 476 are 00:00 UTC on the test's from-date and to-date, not the first and last tick. Do not start either MT4. Tell the user "Report inc-2b5 is ready".
+Lead runs the corrected FXT and answers Q6/Q7 from that run.
