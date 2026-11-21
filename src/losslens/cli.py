@@ -19,6 +19,7 @@ from .mt4 import compile as mt4_compile
 from .mt4 import copy as mt4_copy
 from .mt4 import export as mt4_export
 from .mt4 import fxt as mt4_fxt
+from .mt4 import report as mt4_report
 from .mt4 import run as mt4_run
 from .playground import PlaygroundError, build_playground
 from .ticks import dukascopy, importer, quality
@@ -118,6 +119,12 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("file")
     inspect.set_defaults(func=cmd_mt4_inspect_fxt)
 
+    parse_report = mt4_commands.add_parser(
+        "parse-report", help="read an MT4 strategy tester report"
+    )
+    parse_report.add_argument("file")
+    parse_report.set_defaults(func=cmd_mt4_parse_report)
+
     run_cmd = mt4_commands.add_parser("run", help="run the probe in the tester")
     run_cmd.add_argument("--symbol", required=True)
     run_cmd.add_argument("--from", dest="start", required=True, type=_date_arg)
@@ -137,6 +144,15 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--from", dest="start", required=True, type=_date_arg)
     check.add_argument("--to", dest="end", required=True, type=_date_arg)
     check.set_defaults(func=cmd_mt4_check_ticks)
+
+    check_report = mt4_commands.add_parser(
+        "check-report", help="check a tester report used our ticks"
+    )
+    check_report.add_argument("--report", required=True)
+    check_report.add_argument("--symbol", required=True)
+    check_report.add_argument("--from", dest="start", required=True, type=_date_arg)
+    check_report.add_argument("--to", dest="end", required=True, type=_date_arg)
+    check_report.set_defaults(func=cmd_mt4_check_report)
 
     playground = commands.add_parser("playground", help="local tick playground page")
     playground_commands = playground.add_subparsers(dest="playground_command", required=True)
@@ -403,6 +419,9 @@ def cmd_playground_build(args: argparse.Namespace) -> int:
     except PlaygroundError as exc:
         print(f"playground: {exc}", file=sys.stderr)
         return 2
+    except OSError as exc:
+        print(f"playground: could not write {args.out}: {exc}", file=sys.stderr)
+        return 2
     print(f"playground: {result.path}")
     print(f"ticks: {result.ticks}")
     print(f"first tick: {iso_utc(result.first_ts_ms)}")
@@ -520,6 +539,33 @@ def cmd_mt4_inspect_fxt(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mt4_parse_report(args: argparse.Namespace) -> int:
+    try:
+        parsed = mt4_report.parse_report(Path(args.file))
+    except (mt4_report.ReportError, OSError) as exc:
+        print(f"parse failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"expert: {parsed.expert}")
+    print(f"server: {parsed.server}")
+    print(f"build: {parsed.build}")
+    print(f"symbol: {parsed.symbol}")
+    print(f"period: {parsed.period}")
+    print(f"model: {parsed.model}")
+    print(f"bars: {parsed.bars}")
+    print(f"ticks modelled: {parsed.ticks_modelled}")
+    print(f"modelling quality: {parsed.modelling_quality:.2f}%")
+    print(f"initial deposit: {parsed.initial_deposit:.2f}")
+    print(f"spread: {parsed.spread}")
+    print(f"total net profit: {parsed.total_net_profit:.2f}")
+    print(f"total trades: {parsed.total_trades}")
+    for trade in parsed.trades:
+        print(
+            f"trade {trade.ticket}: {trade.kind} {trade.size} at {trade.close_price} "
+            f"on {trade.close_time}, profit {trade.profit:.2f}, balance {trade.balance:.2f}"
+        )
+    return 0
+
+
 def cmd_mt4_run(args: argparse.Namespace) -> int:
     try:
         result = mt4_run.run_tester(
@@ -565,6 +611,22 @@ def cmd_mt4_check_ticks(args: argparse.Namespace) -> int:
         print(f"first difference: store={store_row} probe={probe_row}")
     print(f"smallest ask-bid: {comparison.min_spread}")
     print(f"largest ask-bid: {comparison.max_spread}")
+    print(f"RESULT: {'identical' if comparison.identical else 'different'}")
+    return 0
+
+
+def cmd_mt4_check_report(args: argparse.Namespace) -> int:
+    symbol = args.symbol.upper()
+    try:
+        parsed = mt4_report.parse_report(Path(args.report))
+        comparison = mt4_check.check_report(_store(symbol), parsed, symbol, args.start, args.end)
+    except (mt4_report.ReportError, mt4_export.ExportError, OSError) as exc:
+        print(f"check failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"report ticks: {comparison.report_ticks}")
+    print(f"store ticks: {comparison.store_ticks}")
+    print(f"report bars: {comparison.report_bars}")
+    print(f"store bars: {comparison.store_bars}")
     print(f"RESULT: {'identical' if comparison.identical else 'different'}")
     return 0
 

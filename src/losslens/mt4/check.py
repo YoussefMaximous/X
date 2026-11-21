@@ -9,7 +9,8 @@ from pathlib import Path
 
 from losslens.ticks.store import TickStore
 
-from .export import round_price, server_seconds
+from .export import date_range_seconds, fxt_totals, round_price, server_seconds
+from .report import TesterReport
 
 PROBE_RECORD = struct.Struct("<qddqq")
 
@@ -28,10 +29,38 @@ class TickComparison:
     identical: bool
 
 
+@dataclass
+class ReportComparison:
+    report_ticks: int
+    store_ticks: int
+    report_bars: int
+    store_bars: int
+    identical: bool
+
+
+def check_report(
+    store: TickStore,
+    report: TesterReport,
+    symbol: str,
+    from_day: date,
+    to_day: date,
+) -> ReportComparison:
+    """Tell whether a tester report counted exactly the ticks we exported."""
+    store_bars, store_ticks = fxt_totals(store, symbol, from_day, to_day)
+    return ReportComparison(
+        report_ticks=report.ticks_modelled,
+        store_ticks=store_ticks,
+        report_bars=report.bars,
+        store_bars=store_bars,
+        identical=report.ticks_modelled == store_ticks and report.bars == store_bars,
+    )
+
+
 def check_probe_ticks(
     store: TickStore, probe_file: Path, symbol: str, from_day: date, to_day: date
 ) -> TickComparison:
     store_rows: list[tuple[int, float]] = []
+    _, cutoff = date_range_seconds(from_day, to_day)
     day = from_day
     while day <= to_day:
         table = store.read_day(day)
@@ -40,7 +69,10 @@ def check_probe_ticks(
                 table["ts_ms"].to_pylist(), table["bid"].to_pylist(), strict=True
             ):
                 utc_seconds = int(ts_ms) // 1000
-                store_rows.append((server_seconds(utc_seconds), round_price(float(bid))))
+                server = server_seconds(utc_seconds)
+                if server >= cutoff:
+                    continue
+                store_rows.append((server, round_price(float(bid))))
         day += timedelta(days=1)
 
     raw = Path(probe_file).read_bytes()

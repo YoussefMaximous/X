@@ -262,6 +262,24 @@ def build_fxt_for_table(
     return bytes(header) + bytes(records)
 
 
+def fxt_totals(store: TickStore, symbol: str, from_day: date, to_day: date) -> tuple[int, int]:
+    """The number of FXT bars and records export_range would write."""
+    digits = SYMBOL_DECIMALS.get(symbol.upper())
+    if digits is None:
+        raise ExportError(f"no decimals known for {symbol}")
+    _, cutoff = date_range_seconds(from_day, to_day)
+    bars = 0
+    records = 0
+    day = from_day
+    while day <= to_day:
+        table = _ticks_of_day(store, day, symbol)
+        count, _, _, part = _fxt_parts(table, digits, 30, FXT_HEADER_TEMPLATE, cutoff=cutoff)
+        bars += count
+        records += len(part) // FXT_RECORD_SIZE
+        day += timedelta(days=1)
+    return bars, records
+
+
 def export_range(
     store: TickStore,
     copy_root: Path,
