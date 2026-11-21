@@ -24,7 +24,9 @@ python -m losslens playground build --symbol XAUUSD --day 2026-03-03 --from 14:0
 ```
 
 Expected: 126 tests pass; all four tools exit 0; the command reports 16,498 ticks, first
-`2026-03-03T14:00:00.003Z`, last `2026-03-03T14:29:59.817Z`, 648,724 bytes.
+`2026-03-03T14:00:00.003Z`, last `2026-03-03T14:29:59.817Z`, 648,724 bytes. The gates and build
+were re-run in a clean worktree at `a096cc1` because the main tree is mid-write on
+`src/losslens/optimize/` and its `cli.py` is temporarily incomplete.
 
 Open `data/playground/xauusd-2026-03-03-1400.html` by double-click. Manual acceptance: step 20,
 freeze and open a buy, draw an up path and a both-ways path, add a second tab, run to end, change the

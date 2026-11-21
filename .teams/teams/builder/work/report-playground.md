@@ -71,9 +71,12 @@ cursor after end:   Tick 16498 / 16498
 
 ## 3. Tools
 
+Verified on the committed tree `a096cc1` in a clean worktree, so the concurrent work-in-progress
+in the main tree does not affect this evidence.
+
 ```text
 python -m pytest -q
-126 passed in 1.84s
+126 passed in 1.97s
 PYTEST_EXIT=0
 ```
 
@@ -86,7 +89,7 @@ All checks passed!
 RUFF_CHECK_EXIT=0
 
 python -m ruff format --check .
-77 files already formatted
+78 files already formatted
 RUFF_FORMAT_EXIT=0
 
 python -m mypy
@@ -94,7 +97,24 @@ Success: no issues found in 26 source files
 MYPY_EXIT=0
 ```
 
+The same clean worktree builds the page with the same result:
+
+```text
+python -m losslens playground build --symbol XAUUSD --day 2026-03-03 --from 14:00 --to 14:30 --out <temp>.html
+ticks: 16498
+first tick: 2026-03-03T14:00:00.003Z
+last tick: 2026-03-03T14:29:59.817Z
+bytes: 648724
+BUILD_EXIT=0
+```
+
 Focused: `python -m pytest -q tests/test_playground.py` → `3 passed`.
+
+Current main tree note: a concurrent agent is mid-write on `src/losslens/optimize/` and
+`src/losslens/cli.py`. A repo-wide run there currently fails at `cli.py:125` with
+`cmd_optimize_plan` undefined, and the optimize files have their own lint issues. That work is not
+part of this commit and has not been changed. The clean-worktree result above is the Playground's
+evidence; re-run the four tools after the concurrent work settles.
 
 ## MT4 look
 
