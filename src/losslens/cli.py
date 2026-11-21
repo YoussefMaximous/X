@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
@@ -237,6 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_cmd.add_argument("--to", dest="end", required=True, type=_date_arg)
     run_cmd.add_argument("--spread", type=int, default=30)
     run_cmd.add_argument("--timeout", type=float, default=600)
+    run_cmd.add_argument("--expert", default="LossLensProbe")
     run_cmd.add_argument("--parameters", help="a .set file to pass to the tester")
     run_cmd.add_argument(
         "--visual",
@@ -600,6 +602,17 @@ def _copy_root() -> Path:
     return mt4_copy.copy_target(resolve_data_root())
 
 
+def _run_root() -> Path:
+    """The logged-in MT4 data folder when LOSSLENS_MT4_HOST is set, else the copy."""
+    configured = os.environ.get("LOSSLENS_MT4_HOST")
+    if not configured:
+        return _copy_root()
+    host = Path(configured).expanduser()
+    if not (host / "terminal.exe").is_file():
+        raise FileNotFoundError(f"LOSSLENS_MT4_HOST has no terminal.exe: {host}")
+    return host
+
+
 def cmd_app_build(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
     out = Path(args.out) if args.out else None
@@ -711,6 +724,7 @@ def _tester_evaluator(
             config.to_day,
             config.spread,
             timeout,
+            expert=config.expert,
             visual=visual,
             parameters=trial_set.name,
         )
@@ -742,7 +756,11 @@ def cmd_optimize_run(args: argparse.Namespace) -> int:
     if args.dry_run:
         evaluate = _dry_evaluate
     else:
-        evaluate = _tester_evaluator(config, _copy_root(), args.timeout, args.visual)
+        try:
+            evaluate = _tester_evaluator(config, _run_root(), args.timeout, args.visual)
+        except OSError as exc:
+            print(f"run failed: {exc}", file=sys.stderr)
+            return 2
     try:
         if config.engine == "smac":
             records = optimize_core.run_smac(config, out, evaluate)
@@ -1011,7 +1029,11 @@ def cmd_mt4_reconcile(args: argparse.Namespace) -> int:
 
 def cmd_mt4_run(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
-    copy_root = _copy_root()
+    try:
+        copy_root = _run_root()
+    except OSError as exc:
+        print(f"run failed: {exc}", file=sys.stderr)
+        return 2
     parameters: str | None = None
     if args.parameters:
         source = Path(args.parameters)
@@ -1027,6 +1049,7 @@ def cmd_mt4_run(args: argparse.Namespace) -> int:
             args.end,
             args.spread,
             args.timeout,
+            expert=args.expert,
             visual=args.visual,
             parameters=parameters,
         )

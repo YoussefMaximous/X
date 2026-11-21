@@ -73,11 +73,13 @@ def test_run_tester_writes_the_visual_setting(tmp_path, monkeypatch):
         date(2026, 3, 3),
         30,
         2,
+        expert="MyEA",
         visual=True,
         parameters="trial.set",
     )
 
     text = (copy_root / "losslens_start.ini").read_text(encoding="utf-8")
+    assert "TestExpert=MyEA" in text
     assert "TestVisualEnable=true" in text
     assert "TestExpertParameters=trial.set" in text
     assert calls

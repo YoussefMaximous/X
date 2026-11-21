@@ -39,6 +39,7 @@ def run_tester(
     spread: int,
     timeout: float,
     *,
+    expert: str = "LossLensProbe",
     visual: bool = False,
     parameters: str | None = None,
 ) -> RunResult:
@@ -47,6 +48,7 @@ def run_tester(
         from_day,
         to_day + timedelta(days=1),
         spread,
+        expert=expert,
         visual=visual,
         parameters=parameters,
     )

@@ -372,6 +372,7 @@ def test_cli_run_uses_the_tester_parameters(tmp_path, monkeypatch, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["trials"] == 1
     assert seen and seen[0]["parameters"] == "losslens_trial.set"
+    assert seen[0]["expert"] == "TestEA"
     record = json.loads((run_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert record["metrics"]["net_profit"] == 0.0
     assert record["metrics"]["trades"] == 0.0

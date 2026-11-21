@@ -8,13 +8,11 @@ Read first: `AGENTS.md`, `.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`,
 **The product is a native desktop app named X, not a browser application.**
 There is no web server and no `127.0.0.1` page to open. One Windows window holds
 the menus, toolbars, Market Watch, chart, Terminal tabs and status bar. The app
-reads the local tick store and imported trade files. MT4 execution and the EA run
-are out of scope. Keep the existing MT4 modules (`src/losslens/mt4/`) as legacy
-import/verification tools, but do not build the app on them, do not launch MT4,
-and do not require `.fxt`/`.hst` for any app feature.
-
-The user's words: “we are independent of it; remove these 2.” The two removed
-items are (1) the EA run and (2) MT4.
+reads the local tick store and imported trade files. MT4 is allowed only as a
+**hidden EA host**: tester-only, no chart, no MT4 UI, closed after each run; X
+owns every screen and all analysis. Keep the existing MT4 modules
+(`src/losslens/mt4/`); the app never shows MT4. The 2-vs-3-decimals and
+source-vs-compiled questions are listed at the end.
 
 ## Current state
 
@@ -32,8 +30,12 @@ items are (1) the EA run and (2) MT4.
 - AI-native optimizer: `python -m losslens optimize plan|run|status|shortlist|
   decide|winner|best`, engines `random` and `smac`, JSON outputs, a chosen
   “winner” that need not be the top score, `docs/OPTIMIZE.md` is the AI protocol.
-- Legacy MT4 readers: report/journal/reconcile/check tools. Useful only as
-  import formats; do not launch MT4.
+- Hidden host runner: `LOSSLENS_MT4_HOST=<logged-in MT4 data folder>` switches
+  runs from the copy to the live terminal; `mt4 run --expert MyEA --parameters
+  expert.set` writes `TestExpert`/`TestExpertParameters`, runs tester-only and
+  reads the report. Code ready, not yet run end-to-end.
+- Legacy MT4 readers: report/journal/reconcile/check tools. Useful as import
+  formats; the hidden host is the only place MT4 is launched.
 
 ## What to build
 
@@ -50,6 +52,26 @@ items are (1) the EA run and (2) MT4.
   logo, icons or assets.
 - 60 fps chart, instant panel switches, no layout jank, no spinner on local data.
 - One process, one window; no localhost server, no bundled webview, no tab.
+
+### 1b. Run and Optimization screens inside X
+
+- **Run panel:** pick the EA/expert name, its `.set`, the date range, spread and
+  timeout; press **Run hidden**. Show a progress log and a summary from the
+  report (ticks, bars, trades, net profit, drawdown, profit factor). No MT4
+  window, no MT4 chart, no MT4 tabs.
+- The host is the logged-in terminal selected by `LOSSLENS_MT4_HOST`; if it is
+  not set, use the isolated copy. MT4 is tester-only, closed after the run. Never
+  type a login or password.
+- Back up an existing `history/default/<SYMBOL>1.hst` and
+  `tester/history/<SYMBOL>1_0.fxt` before replacing them; leave a timestamped
+  copy beside them.
+- **Optimization panel:** list the run folders; edit the goal/budget/constraints;
+  run `random` or `smac`; show `status` advice, `shortlist`, and the chosen
+  winner beside the top score. The CLI stays the source of truth; the panel
+  calls the same core.
+- **Accuracy split:** compiled EAs are re-priced after the run (layer 1) and later
+  orders that depended on a corrected fill are marked; source EAs can use the
+  layer-2 include so every fill is ours inside the tester.
 
 ### 2. Runs and trades — the data the app needs without MT4
 
@@ -139,6 +161,8 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 
 - No live trading, ever. Nothing places, changes or closes an order on any
   account.
+- The hidden host is Strategy Tester only. Never type a login or password. Back
+  up an existing HST/FXT before replacing it, and close MT4 after each run.
 - Nothing leaves the PC. The only online action is the Dukascopy download when
   the user asks. X is one desktop process; no server listens at all.
 - Never copy, upload or commit an EA file; do not open an EA source unless the
@@ -157,10 +181,15 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 6. Optimization lab shows all trials, best vs chosen winner, and the stop reason.
 7. The four tools exit 0; no stub/mock data in the shipped path.
 8. A side-by-side MT4-look review is signed off by the user.
+9. The Run panel starts a hidden tester run and shows its report; no MT4 window
+   or MT4 chart appears.
+10. The Optimization panel shows every trial, the best score, the chosen winner
+    and the stop reason.
 
 ## Out of scope for this build
 
-- Running an EA or MT4 Strategy Tester.
+- Showing MT4's window, chart or tester UI. MT4 is the hidden host only; X is
+  the only screen.
 - Re-implementing EA logic.
 - Live/demo trading, broker connections, account credentials.
 - Copying MetaQuotes assets, icons, name or code.
@@ -173,5 +202,16 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 - Confirm the trade import format the expert can provide (CSV, MT4 report, or
   both).
 - Confirm the neutral label for the Results/losses screen.
-- Confirm whether the optional MT4 bridge is dropped permanently (recommended
-  for this build).
+- Confirm the hidden host path: the already logged-in terminal
+  (`LOSSLENS_MT4_HOST`) or a one-time login in the isolated copy.
+
+## Open questions for Opus
+
+1. **2 or 3 decimals.** Our data is 3; MT4’s symbol/files are 2; compiled EAs
+   see 2 inside the tester. Choose the product rule with the expert.
+2. **Source or compiled EAs.** Source enables layer 2 and full real-spread
+   fills; compiled gets layer-1 correction only.
+3. **Layer 2 include.** Scope and proof that it matches MT4 at a fixed spread
+   before switching to real spreads.
+4. **Tkinter or PySide6** for the fuller X UI.
+5. **Trade import format** and the run/trade store schema.
