@@ -124,11 +124,14 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 ### 5. Data tab
 
 - List tick coverage per symbol/year, missing weekdays, disk size.
+- Dukascopy catalog: `docs/DUKASCOPY_DATA.md`; fork
+  `YoussefMaximous/dukascopy-node` (MIT, 1,499 instruments, 10 timeframes).
+  Show the years available and one Download/Top up button per year.
 - Download/Top up only on an explicit click; the only online source is
   Dukascopy. No automatic download, no timer, no telemetry.
 - Import another tick CSV through the existing importer.
-- Show the freshness of the store and a button to run the EA only if that path
-  is ever re-enabled; otherwise show “Import a run”.
+- Show the freshness of the store and both actions: **Run hidden** (the MT4 host)
+  and **Import a run**.
 
 ### 6. Optimization lab
 
