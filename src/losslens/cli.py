@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
 import time
@@ -25,6 +26,7 @@ from .mt4 import presets as mt4_presets
 from .mt4 import reconcile as mt4_reconcile
 from .mt4 import report as mt4_report
 from .mt4 import run as mt4_run
+from .optimize import core as optimize_core
 from .playground import PlaygroundError, build_playground
 from .ticks import dukascopy, importer, quality
 from .ticks.store import (
@@ -104,6 +106,68 @@ def build_parser() -> argparse.ArgumentParser:
     app_build_cmd.add_argument("--out")
     app_build_cmd.add_argument("--inputs", help="a .set preset or an .mq4 source")
     app_build_cmd.set_defaults(func=cmd_app_build)
+
+    optimize = commands.add_parser("optimize", help="AI-native EA optimization")
+    optimize_commands = optimize.add_subparsers(dest="optimize_command", required=True)
+
+    plan = optimize_commands.add_parser("plan", help="read a .set and write config.json")
+    plan.add_argument("--set", dest="preset", required=True)
+    plan.add_argument("--expert", required=True)
+    plan.add_argument("--symbol", required=True)
+    plan.add_argument("--from", dest="start", required=True, type=_date_arg)
+    plan.add_argument("--to", dest="end", required=True, type=_date_arg)
+    plan.add_argument("--spread", type=int, default=30)
+    plan.add_argument("--budget", type=int, default=50)
+    plan.add_argument("--seed", type=int, default=1)
+    plan.add_argument("--objective", default="net_profit")
+    plan.add_argument("--engine", default="random")
+    plan.add_argument("--min-trades", type=int)
+    plan.add_argument("--max-drawdown", type=float)
+    plan.add_argument("--out", required=True)
+    plan.add_argument("--json", action="store_true", dest="as_json")
+    plan.set_defaults(func=cmd_optimize_plan)
+
+    opt_run = optimize_commands.add_parser("run", help="run the planned trials")
+    opt_run.add_argument("--config", required=True)
+    opt_run.add_argument("--out")
+    opt_run.add_argument("--dry-run", action="store_true")
+    opt_run.add_argument("--resume", action="store_true")
+    opt_run.add_argument("--json", action="store_true", dest="as_json")
+    opt_run.set_defaults(func=cmd_optimize_run)
+
+    opt_status = optimize_commands.add_parser(
+        "status", help="show a run's progress and stop advice"
+    )
+    opt_status.add_argument("--run", required=True)
+    opt_status.add_argument("--json", action="store_true", dest="as_json")
+    opt_status.set_defaults(func=cmd_optimize_status)
+
+    shortlist = optimize_commands.add_parser(
+        "shortlist", help="show candidates for the user to discuss"
+    )
+    shortlist.add_argument("--run", required=True)
+    shortlist.add_argument("--limit", type=int, default=5)
+    shortlist.add_argument("--json", action="store_true", dest="as_json")
+    shortlist.set_defaults(func=cmd_optimize_shortlist)
+
+    decide = optimize_commands.add_parser("decide", help="record the chosen trial and why")
+    decide.add_argument("--run", required=True)
+    decide.add_argument("--trial", type=int, required=True)
+    decide.add_argument("--reason", required=True)
+    decide.add_argument("--json", action="store_true", dest="as_json")
+    decide.set_defaults(func=cmd_optimize_decide)
+
+    best = optimize_commands.add_parser("best", help="write the best-scoring .set")
+    best.add_argument("--run", required=True)
+    best.add_argument("--out")
+    best.add_argument("--json", action="store_true", dest="as_json")
+    best.set_defaults(func=cmd_optimize_best)
+
+    winner = optimize_commands.add_parser("winner", help="write the chosen winner .set")
+    winner.add_argument("--run", required=True)
+    winner.add_argument("--out")
+    winner.add_argument("--json", action="store_true", dest="as_json")
+    winner.set_defaults(func=cmd_optimize_winner)
 
     status = tick_commands.add_parser("status", help="show what the store covers")
     status.add_argument("--symbol", required=True)
@@ -522,6 +586,213 @@ def cmd_app_build(args: argparse.Namespace) -> int:
         return 2
     print(f"chart: {path}")
     print(f"size: {path.stat().st_size} bytes")
+    return 0
+
+
+def _load_optimizer_config(path: str) -> optimize_core.OptimizerConfig:
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        return optimize_core.OptimizerConfig.from_dict(raw)
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise optimize_core.OptimizeError(f"cannot read config: {exc}") from exc
+
+
+def cmd_optimize_plan(args: argparse.Namespace) -> int:
+    try:
+        inputs = mt4_presets.read_inputs(Path(args.preset))
+        config = optimize_core.config_from_inputs(
+            inputs,
+            expert=args.expert,
+            symbol=args.symbol,
+            from_day=args.start,
+            to_day=args.end,
+            spread=args.spread,
+            budget=args.budget,
+            seed=args.seed,
+            objective=args.objective,
+            engine=args.engine,
+            constraints={
+                "min_trades": float(args.min_trades) if args.min_trades is not None else None,
+                "max_drawdown": args.max_drawdown,
+            },
+        )
+    except (mt4_presets.PresetError, optimize_core.OptimizeError, OSError) as exc:
+        print(f"plan failed: {exc}", file=sys.stderr)
+        return 2
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    config_path = out / "config.json"
+    config_path.write_text(json.dumps(config.to_dict(), indent=2) + "\n", encoding="utf-8")
+    questions: list[dict[str, object]] = [
+        {
+            "id": "objective",
+            "question": "What are we optimizing for?",
+            "options": ["net_profit", "profit_factor", "max_drawdown"],
+            "current": config.objective,
+        },
+        {
+            "id": "risk",
+            "question": "What is the largest drawdown you accept?",
+            "current": config.constraints.get("max_drawdown"),
+        },
+        {
+            "id": "trades",
+            "question": "What is the minimum number of trades?",
+            "current": config.constraints.get("min_trades"),
+        },
+        {
+            "id": "period",
+            "question": "Should we validate the winner on another period?",
+            "current": None,
+        },
+    ]
+    data = {"config": config.to_dict(), "config_file": str(config_path), "questions": questions}
+    if args.as_json:
+        print(json.dumps(data, indent=2))
+        return 0
+    print(f"expert: {config.expert}")
+    print(f"symbol: {config.symbol}")
+    print(f"range: {config.from_day} .. {config.to_day}")
+    print(f"spread: {config.spread}")
+    print(f"budget: {config.budget}")
+    print(f"objective: {config.objective}")
+    print("parameters:")
+    for item in config.parameters:
+        print(f"  {item.name}: {item.kind} {item.low} .. {item.high} step {item.step or 'random'}")
+    if config.fixed:
+        print("fixed: " + ", ".join(f"{key}={value}" for key, value in config.fixed.items()))
+    print("questions for the user:")
+    for question in questions:
+        print(f"  - {question['question']}")
+    print(f"config: {config_path}")
+    return 0
+
+
+def cmd_optimize_run(args: argparse.Namespace) -> int:
+    try:
+        config = _load_optimizer_config(args.config)
+    except optimize_core.OptimizeError as exc:
+        print(f"run failed: {exc}", file=sys.stderr)
+        return 2
+    out = Path(args.out) if args.out else Path(args.config).parent
+    if config.engine != "random":
+        print(
+            f"run failed: the {config.engine} engine is not enabled in this build",
+            file=sys.stderr,
+        )
+        return 2
+    if not args.dry_run:
+        print(
+            "run failed: the MT4 evaluator is not enabled in this build; "
+            "use --dry-run until the Lead allows TestExpertParameters",
+            file=sys.stderr,
+        )
+        return 2
+    records = optimize_core.run_trials(
+        config,
+        out,
+        lambda _path, values: optimize_core.dry_metrics(config, values),
+        resume=args.resume,
+    )
+    data = optimize_core.summary(records)
+    data["results"] = str(out / "results.jsonl")
+    if args.as_json:
+        print(json.dumps(data, indent=2, sort_keys=True))
+    else:
+        for key, value in data.items():
+            print(f"{key}: {value}")
+    return 0
+
+
+def cmd_optimize_status(args: argparse.Namespace) -> int:
+    run_dir = Path(args.run)
+    records = optimize_core.load_results(run_dir)
+    data = optimize_core.summary(records)
+    budget = len(records)
+    try:
+        budget = _load_optimizer_config(str(run_dir / "config.json")).budget
+    except optimize_core.OptimizeError:
+        pass
+    advice = optimize_core.stop_advice(records, budget)
+    output = {
+        "summary": data,
+        "advice": advice,
+        "decision": optimize_core.read_decision(run_dir),
+    }
+    if args.as_json:
+        print(json.dumps(output, indent=2, sort_keys=True))
+        return 0
+    for key, value in data.items():
+        print(f"{key}: {value}")
+    print(f"recommended_stop: {advice['recommended_stop']}")
+    print(f"why: {advice['reason']}")
+    print(f"remaining: {advice['remaining']}")
+    return 0
+
+
+def cmd_optimize_shortlist(args: argparse.Namespace) -> int:
+    records = optimize_core.load_results(Path(args.run))
+    data = optimize_core.shortlist(records, args.limit)
+    if args.as_json:
+        print(json.dumps(data, indent=2, sort_keys=True))
+        return 0
+    print(f"eligible: {data['eligible']} of {data['total']}")
+    for record in data["top"]:
+        print(f"trial {record['trial']}: {record['objective']} {record['values']}")
+    if data["diverse"] is not None:
+        record = data["diverse"]
+        print(f"most different: trial {record['trial']}: {record['objective']} {record['values']}")
+    return 0
+
+
+def cmd_optimize_decide(args: argparse.Namespace) -> int:
+    try:
+        decision = optimize_core.decide(Path(args.run), args.trial, args.reason)
+    except optimize_core.OptimizeError as exc:
+        print(f"decide failed: {exc}", file=sys.stderr)
+        return 2
+    if args.as_json:
+        print(json.dumps(decision, indent=2, sort_keys=True))
+    else:
+        print(f"winner: trial {decision['trial']}")
+        print(f"reason: {decision['reason']}")
+        print(f"objective: {decision['record']['objective']}")
+    return 0
+
+
+def cmd_optimize_winner(args: argparse.Namespace) -> int:
+    out = Path(args.out) if args.out else None
+    try:
+        path, decision = optimize_core.winner_set(Path(args.run), out)
+    except (optimize_core.OptimizeError, OSError) as exc:
+        print(f"winner failed: {exc}", file=sys.stderr)
+        return 2
+    if args.as_json:
+        print(json.dumps({"winner": str(path), "decision": decision}, indent=2, sort_keys=True))
+    else:
+        print(f"winner: {path}")
+        print(f"trial: {decision['trial']}")
+        print(f"reason: {decision['reason']}")
+    return 0
+
+
+def cmd_optimize_best(args: argparse.Namespace) -> int:
+    run_dir = Path(args.run)
+    records = optimize_core.load_results(run_dir)
+    best = optimize_core.best_record(records)
+    if best is None:
+        print("best failed: no scored trials", file=sys.stderr)
+        return 2
+    source = run_dir / str(best["set"])
+    target = Path(args.out) if args.out else run_dir / "best.set"
+    target.write_bytes(source.read_bytes())
+    if args.as_json:
+        print(json.dumps({"best": str(target), "record": best}, indent=2, sort_keys=True))
+    else:
+        print(f"best: {target}")
+        print(f"trial: {best['trial']}")
+        print(f"objective: {best['objective']}")
+        print(f"values: {best['values']}")
     return 0
 
 
