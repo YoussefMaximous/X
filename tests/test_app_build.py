@@ -15,7 +15,7 @@ BASE = 1772496000
 def _store(tmp_path):
     store = TickStore(tmp_path, "XAUUSD")
     ticks = [
-        (BASE + 10 * 3600, 2650.00, 2650.20),
+        (BASE + 10 * 3600, 2650.124, 2650.324),
         (BASE + 10 * 3600 + 30, 2650.10, 2650.30),
         (BASE + 10 * 3600 + 60, 2650.20, 2650.40),
         (BASE + 10 * 3600 + 120, 2649.90, 2650.10),
@@ -61,15 +61,20 @@ def test_build_app_embeds_the_bars(tmp_path):
 
     assert data["symbol"] == "XAUUSD"
     assert data["day"] == "2026-03-03"
-    assert data["digits"] == 2
+    assert data["digits"] == 3
     assert data["ticks"] == 4
     assert data["offset_hours"] == 2
     assert data["bid"] == 2649.90
     assert data["ask"] == 2650.10
     assert data["bars"] == [
-        [BASE + 12 * 3600, 2650.0, 2650.1, 2650.0, 2650.1, 2],
+        [BASE + 12 * 3600, 2650.124, 2650.124, 2650.1, 2650.1, 2],
         [BASE + 12 * 3600 + 60, 2650.2, 2650.2, 2650.2, 2650.2, 1],
         [BASE + 12 * 3600 + 120, 2649.9, 2649.9, 2649.9, 2649.9, 1],
+    ]
+    assert data["ask_bars"] == [
+        [BASE + 12 * 3600, 2650.324, 2650.324, 2650.3, 2650.3, 2],
+        [BASE + 12 * 3600 + 60, 2650.4, 2650.4, 2650.4, 2650.4, 1],
+        [BASE + 12 * 3600 + 120, 2650.1, 2650.1, 2650.1, 2650.1, 1],
     ]
 
 
@@ -78,7 +83,18 @@ def test_build_app_page_has_the_native_parts_and_no_outside_calls(tmp_path):
         encoding="utf-8"
     )
 
-    for text in ("Market Watch", "Terminal", "Journal", "M1", "M5", "D1", "File", "Charts"):
+    for text in (
+        "Market Watch",
+        "Terminal",
+        "Journal",
+        "M1",
+        "M5",
+        "D1",
+        "File",
+        "Charts",
+        "ask_bars",
+        "Spread",
+    ):
         assert text in html
     for text in ("://", "fetch(", "<script src=", "WebSocket"):
         assert text not in html

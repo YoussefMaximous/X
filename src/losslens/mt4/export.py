@@ -15,6 +15,7 @@ from losslens.ticks.store import TickStore
 
 COPYRIGHT = b"Copyright 2005-2025, MetaQuotes Ltd."
 SYMBOL_DECIMALS = {"XAUUSD": 2}
+SYMBOL_PRECISION = {"XAUUSD": 3}
 HST_VERSION = 401
 HST_HEADER_SIZE = 148
 HST_RECORD_FORMAT = "<qddddqiq"
@@ -100,15 +101,15 @@ def _ticks_of_day(store: TickStore, day: date, symbol: str) -> pa.Table:
 
 
 def _bars_for_table(
-    table: pa.Table, digits: int
+    table: pa.Table, digits: int, column: str = "bid"
 ) -> list[tuple[int, float, float, float, float, int]]:
     bars: list[tuple[int, float, float, float, float, int]] = []
     current_minute: int | None = None
     open_price = high = low = close = 0.0
     volume = 0
     timestamps = table["ts_ms"].to_pylist()
-    bids = table["bid"].to_pylist()
-    for ts_ms, raw_bid in zip(timestamps, bids, strict=True):
+    prices = table[column].to_pylist()
+    for ts_ms, raw_bid in zip(timestamps, prices, strict=True):
         bid = round_price(float(raw_bid), digits)
         minute = int(ts_ms) // 60_000
         if current_minute is None:

@@ -139,12 +139,14 @@
 </div>
 <script>
 const DATA = /*__DATA__*/;
+const askData = DATA.ask_bars || [];
 const TF_LABEL = {1: 'M1', 5: 'M5', 15: 'M15', 30: 'M30', 60: 'H1', 240: 'H4', 1440: 'D1'};
 const canvas = document.getElementById('chart');
 const ctx = canvas.getContext('2d');
 const terminalbody = document.getElementById('terminalbody');
 let tf = 1;
 let bars = DATA.bars;
+let askBars = askData;
 let view = {start: Math.max(0, bars.length - 180), count: Math.min(bars.length, 180)};
 let hover = null;
 let dragging = null;
@@ -175,12 +177,12 @@ function money(value) {
   return value.toFixed(DATA.digits);
 }
 
-function aggregate(minutes) {
-  if (minutes === 1) return DATA.bars;
+function aggregate(rows, minutes) {
+  if (minutes === 1) return rows;
   const span = minutes * 60;
   const out = [];
   let bucket = null;
-  for (const row of DATA.bars) {
+  for (const row of rows) {
     const key = Math.floor(row[0] / span);
     if (bucket === null || bucket.key !== key) {
       if (bucket !== null) out.push([bucket.t, bucket.o, bucket.h, bucket.l, bucket.c, bucket.v]);
@@ -198,7 +200,8 @@ function aggregate(minutes) {
 
 function setTimeframe(minutes) {
   tf = minutes;
-  bars = aggregate(minutes);
+  bars = aggregate(DATA.bars, minutes);
+  askBars = aggregate(askData, minutes);
   view.count = Math.min(bars.length, 180);
   view.start = Math.max(0, bars.length - view.count);
   hover = null;
@@ -310,6 +313,26 @@ function draw() {
     ctx.fillRect(cx - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
   }
 
+  if (askBars.length === bars.length) {
+    ctx.strokeStyle = 'rgba(255, 96, 96, 0.8)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    let started = false;
+    for (let i = view.start; i < Math.min(bars.length, view.start + view.count); i += 1) {
+      const row = askBars[i];
+      if (!row) continue;
+      const px = x(i);
+      const py = y(row[4]);
+      if (!started) {
+        ctx.moveTo(px, py);
+        started = true;
+      } else {
+        ctx.lineTo(px, py);
+      }
+    }
+    ctx.stroke();
+  }
+
   const last = bars[bars.length - 1];
   const lastY = y(last[4]);
   ctx.strokeStyle = '#707070';
@@ -352,6 +375,13 @@ function draw() {
     'O ' + money(shown[1]) + '  H ' + money(shown[2]) + '  L ' + money(shown[3]) +
     '  C ' + money(shown[4]) + '  V ' + shown[5],
     box.left + 4, 18
+  );
+  const askShown = askBars[hover === null ? askBars.length - 1 : hover.index] || null;
+  const askPrice = askShown ? askShown[4] : DATA.ask;
+  ctx.fillStyle = '#ff9090';
+  ctx.fillText(
+    'B ' + money(shown[4]) + '  A ' + money(askPrice) + '  S ' + money(askPrice - shown[4]),
+    box.left + 4, 32
   );
 }
 
@@ -477,7 +507,8 @@ const change = lastBar[4] - previousBar[4];
 const changeText = (change >= 0 ? '+' : '') + change.toFixed(DATA.digits);
 document.getElementById('watchtext').innerHTML =
   'Last ' + timeLabel(lastBar[0]) + ' server<br>' +
-  'Change <span class="' + (change >= 0 ? 'up' : 'down') + '">' + changeText + '</span>';
+  'Change <span class="' + (change >= 0 ? 'up' : 'down') + '">' + changeText + '</span><br>' +
+  'Spread ' + money(DATA.ask - DATA.bid);
 terminalbody.textContent = TERMINAL.Journal;
 updateStatus();
 

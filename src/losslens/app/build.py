@@ -30,7 +30,9 @@ def build_app(
         table = export._ticks_of_day(store, day, code)
     except export.ExportError as exc:
         raise AppError(str(exc)) from exc
-    bars = export._bars_for_table(table, digits)
+    precision = export.SYMBOL_PRECISION.get(code, digits)
+    bars = export._bars_for_table(table, precision)
+    ask_bars = export._bars_for_table(table, precision, "ask")
     if not bars:
         raise AppError(f"{day.isoformat()} has no bars")
     first_utc = int(table["ts_ms"][0].as_py()) // 1000
@@ -53,12 +55,13 @@ def build_app(
     payload = {
         "symbol": code,
         "day": day.isoformat(),
-        "digits": digits,
+        "digits": precision,
         "ticks": table.num_rows,
         "offset_hours": export.server_offset_seconds(first_utc) // 3600,
         "bid": float(table["bid"][last_row].as_py()),
         "ask": float(table["ask"][last_row].as_py()),
         "bars": bars,
+        "ask_bars": ask_bars,
         "inputs": inputs,
     }
     template = Path(__file__).with_name("template.html").read_text(encoding="utf-8")
