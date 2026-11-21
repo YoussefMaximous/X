@@ -98,6 +98,7 @@ def test_build_writes_one_self_contained_page(tick_store, tmp_path):
     assert data["symbol"] == "XAUUSD"
     assert data["day"] == "2026-03-03"
     assert data["window"] == {"from": "14:00", "to": "14:01"}
+    assert data["digits"] == 3
     assert data["tickCount"] == len(TICKS)
     assert len(data["ticks"]) == len(TICKS)
     assert data["firstTick"] == TICKS[0]
@@ -122,15 +123,18 @@ def test_build_writes_one_self_contained_page(tick_store, tmp_path):
         "PAUSED",
         "FUTURE",
         "Expert",
+        "Draw prediction",
+        "Draw ticks",
+        "Clear ticks",
     ):
         assert label in html
     assert 'id="grid-step"' in html
-    assert 'id="period-select"' in html
+    assert 'id="period-buttons"' in html
     assert 'data-tab="expert"' in html
     for step in ("0.01", "0.05", "0.10", "0.25", "0.50", "1.00", "custom"):
         assert f'value="{step}"' in html
     for period in ("tick", "t1", "t10", "t100", "t500", "t1000", "m1", "m5", "m15", "m30", "h1"):
-        assert f'value="{period}"' in html
+        assert f'data-period="{period}"' in html
 
     for name in (
         "Order" + "Send(",

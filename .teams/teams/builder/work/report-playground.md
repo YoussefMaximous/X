@@ -1,28 +1,21 @@
-# Report — Playground rebuild (MT4-native, tick bars, expert inspection)
+# Report — Playground rebuilt in the X style
 
-Updated: 2026-11-21 · Builder · Separate part.
+Updated: 2026-11-22 · Builder · Separate part.
 
-**Summary.** Rebuilt the Playground after the feedback that the first view was too zoomed out,
-had no period choice, did not make the ticks visible, and did not let the expert be loaded. The page
-now uses the app template's MT4 layout: menubar, toolbar, Market Watch, chart, Terminal and status
-bar. It has a period picker (Tick line, 1/10/100/500/1,000 ticks per bar, M1/M5/M15/M30/H1), candles
-built from the stored Dukascopy ticks, a five-minute warm-up, auto-follow, wheel zoom, drag pan,
-a Data Window, and a first-run Help tab. The Expert tab loads the project's `.set`/`.mq4` inputs and
-an MT4 Strategy Tester report, shows the report's closes on the chart, toggles the overlay, and
-lets each trade be unchecked from the what-if. The Playground never runs MT4; the run still comes
-from the existing runner. No server, network, new dependency, base64, external asset or MT4 change.
+**Summary.** Rebuilt the Playground to match the X desktop app (`src/losslens/desktop/app.py`):
+X branding, Tahoma, `#f0f0f0` panels, raised/sunken Tk-style buttons, the X timeframe buttons
+(Tick, 1T, 10T, 100T, 500T, 1K, M1, M5, M15, M30, H1), black chart, 3-decimal prices, green/red
+candles, the pink ask line, the B/A/S overlay, the grey last-price line and the green last-price
+tag. The chart starts with the first five minutes revealed, follows the cursor, and supports
+mouse-wheel zoom and drag-to-pan. The replay bar, Market Watch, Data Window, Terminal tabs and
+status bar follow the X layout. Added **Draw prediction** with a live snapped preview, and
+**Draw ticks** / **Clear ticks**: drag a light-grey future tape from the freeze point, step through
+it with the normal tickets/predictions, and clear it to restore the real tape. The Expert tab still
+loads the project's `.set`/`.mq4` inputs and an MT4 tester report; while a drawn tape is active the
+real report is hidden, because the expert report belongs to the real tape. No server, network, new
+dependency, base64, external asset or MT4 change.
 
-## Files
-
-- `src/losslens/playground/page_body.py` — MT4 layout, CSS and page markup
-- `src/losslens/playground/page_script.py` — chart, replay, tickets, prediction, scenarios, expert
-- `src/losslens/playground/page.py` — assembles the single HTML file
-- `src/losslens/playground/build.py` — ticks, period data, expert inputs/report, atomic write
-- `tests/test_playground.py` — page, cap, window and expert tests
-- `src/losslens/cli.py` — `--inputs` and `--report` on `playground build`
-- Generated and ignored: `data/playground/xauusd-2026-03-03-1400.html`
-
-## Command
+## Output
 
 ```text
 python -m losslens playground build --symbol XAUUSD --day 2026-03-03 --from 14:00 --to 14:30 --out data/playground/xauusd-2026-03-03-1400.html
@@ -30,114 +23,92 @@ playground: data\playground\xauusd-2026-03-03-1400.html
 ticks: 16498
 first tick: 2026-03-03T14:00:00.003Z
 last tick: 2026-03-03T14:29:59.817Z
-bytes: 683343
-BUILD_EXIT=0
+bytes: 698081
+BUILD=0
 ```
 
-The command also accepts `--inputs expert.set` (or `.mq4`) and `--report tester.htm`. It prints the
-expert input count and how many report trades close in the window.
+The file is ignored by git. It is one self-contained HTML page: inline CSS/JS, ticks as JSON in
+`<script id="tick-data" type="application/json">`, no external address, font, image, CDN, `fetch`,
+`<script src=` or `WebSocket`.
 
-## What changed after the feedback
+## X style alignment
 
-- **Zoomed out / empty first view:** the first five minutes are revealed at load, the x-axis fits the
-  revealed series plus a small future margin, and the view auto-follows the cursor. `Follow` brings
-  it back after a pan or zoom.
-- **Period picker:** Tick line, 1/10/100/500/1,000 ticks per bar, and M1/M5/M15/M30/H1. The default
-  is 100 ticks per bar; the Help explains how to switch to M1.
-- **Ticks are drawn:** tick bars are OHLC candles built from the real Dukascopy ticks; the Tick line
-  mode draws the raw bid line (and spread marks when zoomed in). The Data Window shows the current
-  bar's O/H/L/C, change, tick count, and how full a tick bar is (`44 / 100`).
-- **Cognitively clearer:** MT4 layout and tokens, first-run Help tab (not an overlay on the chart),
-  Data Window, replay bar with tick progress, status messages, no tooltip for future prices.
-- **Expert inspection:** the Expert tab uses the project's existing `.set`/`.mq4` reader and MT4
-  report reader/reconcile path. It shows the report's in-window closes, a chart toggle, a per-trade
-  `Use` checkbox, the window start balance, and a what-if final. Unchecking a trade removes its
-  P&L from the what-if and hides its marker; the raw ticks stay untouched. The scoreboard adds a
-  normalized `$10,000` expert row. The Playground does not execute the EA.
+- Brand `X` with a muted `Playground`, window title `X — Playground`.
+- Timeframe buttons in the toolbar, active button sunken; all toolbar/replay buttons raised and
+  sunken like Tk.
+- Chart colours from X: `#000` background, `#1a1a1a` grid, `#d0d0d0` text, `#a8a8a8` axes,
+  `#00c000` up/bid, `#ff4040` down, `#ff9090` ask, grey `#707070` last-price line, green bid tag.
+- Candles are bid OHLC with a body capped at 14 px; the pink ask close line runs over them.
+- Chart overlay: `XAUUSD, <period>`, O/H/L/C/V, and `B/A/S` in ask pink, as in X.
+- 3-decimal prices throughout (chart, Market Watch, Data Window, tickets).
+
+## Playback and drawing
+
+- First five minutes revealed; auto-follow; wheel zoom; drag pan; `Follow`; double-click follows.
+  Status shows the view size so zoom is visible.
+- **Draw prediction**: click future points, snapped to the price grid; a live blue preview shows
+  the point and its snapped price. Undo/Clear in the Prediction tab or Tools menu.
+- **Draw ticks**: drag a light-grey path into the future from the current freeze point. The path
+  becomes a synthetic tape: custom bid/ask ticks replace the real future, the pink ask line and
+  candles follow, and the normal replay, tickets, SL/TP and prediction scoring work on it.
+  `Clear ticks` restores the real tape and clears tickets/prediction. The tape is saved in
+  localStorage and the scenario JSON.
+- Expert: `--inputs` and `--report`; the Expert tab shows inputs, report summary/closes, the chart
+  toggle and per-trade include/exclude. It is hidden while a drawn tape is active; the report is
+  tied to the real tape.
 
 ## Evidence
 
-Page data: `tickCount = 16498`, `len(ticks) = 16498`, first
-`[1772546400003, 5156.405, 5157.432]`, last `[1772548199817, 5145.685, 5146.755]`.
-Static checks: no `://`, no `fetch(`, no `<script src=`, no `WebSocket`; required labels and the
-period/grid controls are present. `node --check` on the inline script exits 0.
-
-Final acceptance harness (headless Chrome, `file://`):
-
-```text
-initial: Help tab active, Tick 3,244 / 16,498, 100 ticks / bar, 44 / 100
-+20 ticks: Tick 3,264 / 16,498, 64 / 100
-switch to M1: 1 minute, 14:05 UTC, 20 ticks in the bar
-Buy: 14:05:01 buy 0.01 5159.87, cursor still Tick 3,264, equity $9,998.80
-2 prediction points; Both ways active
-Scenarios: Scenario 1, Scenario 2
-Grid: 0.25
-Run to end: scoreboard visible
-Scenario 2 | $10,000.00 | $0.00 | 0 | — | — | —
-Scenario 1 | $9,985.81 | $50.36 | 1 | — | 3.46 | 50.0%
-end: Tick 16,498 / 16,498
-```
-
-Period harness: all eleven periods switch and report the right Data Window values, including
-Tick line (3,244 ticks), 1 tick/bar (3,244 bars), 10 ticks/bar (325 bars), 100 ticks/bar (33 bars),
-M1 (5 bars), and the larger time bars (1 bar while only the first five minutes are revealed).
-
-Expert harness (synthetic `expert.set` and tester report, same stored ticks):
-
-```text
-Expert: TestExpert · expert.set · report.htm
-Report: 1 trade · net $1.00; window: 1 close · 1 placed; window start $10,000.00
-Trade: 1 · 14:00:23 UTC · buy · 0.01 · 5156.40 · $1.00 · $10,001.00
-What-if: 1 included · $1.00 · final $10,001.00
-Uncheck the trade: 0 included · $0.00 · final $10,000.00
-Re-check: 1 included · $1.00 · final $10,001.00
-Overlay toggle: off
-Scoreboard: Expert report (window, $10k) | $10,001.00 | — | 1 | 100.0% | — | —
-```
-
-## Tools
-
-Verified in the shared working tree after the concurrent optimizer work settled:
-
 ```text
 python -m pytest -q
-142 passed in 5.26s
-PYTEST_EXIT=0
+149 passed in 9.33s
+PYTEST=0
 
 python -m ruff check .
 All checks passed!
 RUFF=0
 
 python -m ruff format --check .
-85 files already formatted
+92 files already formatted
 FMT=0
 
 python -m mypy
-Success: no issues found in 30 source files
+Success: no issues found in 33 source files
 MYPY=0
 
 python -m pytest -q tests/test_playground.py
 4 passed
 ```
 
-The pytest atexit warning about `pytest-current` permissions is pytest's temporary-folder cleanup;
-the exit code is 0.
+Final headless `file://` acceptance harness:
 
-## Research and rationale
+```text
+initial: X Playground, 100T active, view 42 bars, real ticks, FUTURE
+wheel: view 42 bars -> 34 bars
+M1 button: 1 minute, active M1
+Draw prediction: 2 points
+Draw ticks: 53 custom ticks, status "16,498 real + 53 drawn", tape "Drawn · 53 ticks",
+            clear enabled, replay 3,244 / 3,297
+after Next 10: tick 3,254 / 3,297, status "drawn"
+After Clear ticks: FUTURE, "16,498 Dukascopy ticks", tape "Real ticks", clear disabled
+Run to end: scoreboard visible
+```
 
-The rebuild follows MT4's visual-mode habits (step, chart through time, tester-style controls) and
-TradingView/MotiveWave replay habits (a replay bar, step-forward, auto-follow, zoom/pan, a clear
-cursor). Tick charts are useful for activity and spread detail but noisy alone, so the default is
-100 ticks per bar and time bars are one click away. The first view shows the first five minutes so
-the chart has shape; the Help tab opens first so the controls are explained without covering the
-chart. The app template's exact tokens (Tahoma, `#f0f0f0`, `#e4e4e4`, `#2f6fb3`, black chart,
-`#00c000`/`#ff4040`) keep the Playground in the same product.
+The expert harness (synthetic `.set` + tester report on the same stored ticks) showed
+`TestExpert`, the input row, one in-window close at 14:00:23 UTC (buy 0.01, close 5156.400,
+profit $1.00), and unchecking it changed the what-if from $10,001.00 to $10,000.00; rechecking
+restored it. The scoreboard expert row was `Expert report (window, $10k) | $10,001.00 | — | 1 |
+100.0% | — | —`.
+
+Period harness: all eleven periods switch, including Tick line (3,244 ticks), 1 tick/bar
+(3,244 bars), 10 ticks/bar (325 bars), 100 ticks/bar (33 bars), M1 (5 bars), and the larger time
+bars while only the first five minutes are revealed.
 
 ## Not verified / open
 
-- The user's own browser and their real expert report; the Expert path was tested with a synthetic
-  report whose close matches a stored tick. The Playground does not run MT4; the runner produces
-  the report.
-- A side-by-side pixel check against the installed MT4; the layout follows the app template and
-  MT4's documented visual mode.
+- The user's own browser and their real expert `.set`/report; the expert path was tested with a
+  synthetic report whose close matches a stored tick.
+- A side-by-side pixel check against the running X desktop window; the style follows its constants
+  and layout.
+- The report gives close times/prices only; entry markers need a journal or decision log.
 - `data/` is ignored; nothing generated is committed.

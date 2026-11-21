@@ -87,7 +87,7 @@ def build_playground(
     ticks = _rows(table)
     first_ts = int(ticks[0][0])
     last_ts = int(ticks[-1][0])
-    digits = export.SYMBOL_DECIMALS.get(symbol.upper(), 2)
+    digits = export.SYMBOL_PRECISION.get(symbol.upper(), 3)
     dataset_id = _dataset_id(symbol, day, start_label, end_label, count, first_ts, last_ts)
     expert_inputs = _read_expert_inputs(inputs_path)
     expert_report, total_trades, window_trades = _read_expert_report(

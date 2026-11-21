@@ -7,8 +7,10 @@ SCRIPT = r"""
   "use strict";
 
   const DATA = JSON.parse(document.getElementById("tick-data").textContent);
-  const TICKS = DATA.ticks;
-  const N = TICKS.length;
+  const REAL_TICKS = DATA.ticks;
+  const REAL_N = REAL_TICKS.length;
+  let TICKS = REAL_TICKS;
+  let N = REAL_N;
   const START_BALANCE = Number(DATA.startBalance) || 10000;
   const CONTRACT_SIZE = Number(DATA.contractSize) || 100;
   const DIGITS = Number(DATA.digits) || 2;
@@ -28,7 +30,8 @@ SCRIPT = r"""
     grid: "#1a1a1a",
     gridStrong: "#2a2a2a",
     axis: "#a8a8a8",
-    text: "#d8d8d8",
+    text: "#d0d0d0",
+    ohlc: "#b0b0b0",
     up: "#00c000",
     down: "#ff4040",
     accent: "#2f6fb3",
@@ -37,6 +40,8 @@ SCRIPT = r"""
     ghostDown: "#ff4040",
     buy: "#2f6fb3",
     sell: "#a53a3a",
+    ask: "#ff9090",
+    custom: "#e0e0e0",
     future: "rgba(255, 255, 255, 0.014)",
     hover: "#808080"
   };
@@ -58,7 +63,7 @@ SCRIPT = r"""
   const canvas = $("chart");
   const ctx = canvas.getContext("2d");
   const el = {
-    period: $("period-select"),
+    periodButtons: $("period-buttons"),
     grid: $("grid-step"),
     zoomout: $("zoomout"),
     zoomin: $("zoomin"),
@@ -70,6 +75,9 @@ SCRIPT = r"""
     nextbar: $("nextbar"),
     progress: $("progress-fill"),
     replayStatus: $("replay-status"),
+    futureTag: $("future-tag"),
+    drawTicks: $("draw-ticks"),
+    clearTicks: $("clear-ticks"),
     datasetLine: $("dataset-line"),
     wsymbol: $("wsymbol"),
     bid: $("bid"),
@@ -137,6 +145,7 @@ SCRIPT = r"""
     sessionDay: $("session-day"),
     sessionWindow: $("session-window"),
     sessionTicks: $("session-ticks"),
+    sessionTape: $("session-tape"),
     sessionExpert: $("session-expert"),
     storageNote: $("storage-note"),
     scoreboard: $("scoreboard"),
@@ -162,6 +171,11 @@ SCRIPT = r"""
     dragMoved: false,
     expertVisible: true,
     excludedExpertTickets: new Set(),
+    customTicks: [],
+    customBranch: null,
+    customSpread: 0,
+    tickDrawMode: false,
+    tickStroke: null,
     message: ""
   };
   let bars = [];
@@ -296,12 +310,23 @@ SCRIPT = r"""
         const ts = TICKS[i][0];
         const bid = TICKS[i][1];
         if (bar === null || bar.v >= spec.count) {
-          bar = { t: ts, o: bid, h: bid, l: bid, c: bid, v: 1, first: i, last: i };
+          bar = {
+            t: ts,
+            o: bid,
+            h: bid,
+            l: bid,
+            c: bid,
+            ac: TICKS[i][2],
+            v: 1,
+            first: i,
+            last: i
+          };
           result.push(bar);
         } else {
           bar.h = Math.max(bar.h, bid);
           bar.l = Math.min(bar.l, bid);
           bar.c = bid;
+          bar.ac = TICKS[i][2];
           bar.v += 1;
           bar.last = i;
         }
@@ -315,13 +340,24 @@ SCRIPT = r"""
       const bid = TICKS[i][1];
       const bucket = Math.floor(ts / spec.ms) * spec.ms;
       if (bar === null || bucket !== key) {
-        bar = { t: bucket, o: bid, h: bid, l: bid, c: bid, v: 1, first: i, last: i };
+        bar = {
+          t: bucket,
+          o: bid,
+          h: bid,
+          l: bid,
+          c: bid,
+          ac: TICKS[i][2],
+          v: 1,
+          first: i,
+          last: i
+        };
         key = bucket;
         result.push(bar);
       } else {
         bar.h = Math.max(bar.h, bid);
         bar.l = Math.min(bar.l, bid);
         bar.c = bid;
+        bar.ac = TICKS[i][2];
         bar.v += 1;
         bar.last = i;
       }
@@ -334,15 +370,208 @@ SCRIPT = r"""
     bars = spec.kind === "tick" ? [] : buildBars(spec, state.cursor);
   }
 
+  function rebuildTape() {
+    if (state.customTicks.length && state.customBranch !== null) {
+      TICKS = REAL_TICKS.slice(0, state.customBranch + 1).concat(state.customTicks);
+    } else {
+      TICKS = REAL_TICKS;
+    }
+    N = TICKS.length;
+    if (state.cursor > N - 1) {
+      state.cursor = Math.max(0, N - 1);
+    }
+  }
+
+  function customEndIndex() {
+    if (state.customTicks.length) {
+      return TICKS.length - 1;
+    }
+    return state.customBranch === null ? state.cursor : state.customBranch;
+  }
+
+  function customPreviewTicks() {
+    if (!state.customTicks.length || state.customBranch === null) {
+      return [];
+    }
+    const out = [];
+    const start = state.customBranch + 1;
+    for (let i = 0; i < state.customTicks.length; i += 1) {
+      const index = start + i;
+      if (index > state.cursor) {
+        out.push({ index: index, tick: state.customTicks[i] });
+      }
+    }
+    return out;
+  }
+
+  function fitCustomView() {
+    if (!state.customTicks.length) {
+      return;
+    }
+    const end = N - 1;
+    const start = Math.max(0, state.cursor - 15);
+    const count = clamp(end - start + 1 + 15, minViewCount(), maxViewCount());
+    state.viewCount = count;
+    state.viewStart = clamp(end - count + 1, 0, maxViewStart());
+    state.follow = false;
+  }
+
+  function toggleTickDraw() {
+    if (state.tickDrawMode) {
+      state.tickDrawMode = false;
+      state.tickStroke = null;
+      setMessage("Draw ticks off. Step forward to replay the drawn tape.");
+      refreshAll();
+      return;
+    }
+    state.tickDrawMode = true;
+    state.drawMode = false;
+    if (!state.customTicks.length) {
+      state.customBranch = state.cursor;
+      state.customSpread = Math.max(0, currentAsk() - currentBid());
+    }
+    setPeriod("tick");
+    setMessage("Draw ticks: drag a gold path into the future. Clear ticks restores the real tape.");
+    refreshAll();
+    saveState();
+  }
+
+  function startTickStroke(event) {
+    const rect = canvas.getBoundingClientRect();
+    const box = plotBox();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (x < box.left || x > box.left + box.width || y < box.top || y > box.top + box.height) {
+      return;
+    }
+    if (state.customBranch === null) {
+      state.customBranch = state.cursor;
+      state.customSpread = Math.max(0, currentAsk() - currentBid());
+    }
+    state.tickStroke = { viewStart: state.viewStart, viewCount: state.viewCount };
+    state.follow = false;
+    addTickStrokePoint(event);
+    event.preventDefault();
+  }
+
+  function addTickStrokePoint(event) {
+    if (!state.tickStroke) {
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const box = plotBox();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (x < box.left || x > box.left + box.width || y < box.top || y > box.top + box.height) {
+      return;
+    }
+    const raw = state.tickStroke.viewStart +
+      (x - box.left) / box.width * state.tickStroke.viewCount;
+    const end = customEndIndex();
+    const limit = state.tickStroke.viewStart + state.tickStroke.viewCount - 1;
+    const target = clamp(Math.floor(raw), end + 1, limit);
+    if (target <= end) {
+      return;
+    }
+    const range = priceRange();
+    const bid = snapPrice(range.low + (box.top + box.height - y) / box.height *
+      (range.high - range.low));
+    const branch = state.customBranch;
+    const branchTick = REAL_TICKS[branch];
+    const lastTick = state.customTicks.length
+      ? state.customTicks[state.customTicks.length - 1] : branchTick;
+    const spread = state.customSpread >= 0 ? state.customSpread
+      : Math.max(0, currentAsk() - currentBid());
+    const total = target - end;
+    for (let j = 1; j <= total; j += 1) {
+      const fraction = j / total;
+      const price = lastTick[1] + (bid - lastTick[1]) * fraction;
+      const ts = lastTick[0] + j * 250;
+      state.customTicks.push([
+        ts,
+        Number(price.toFixed(6)),
+        Number((price + spread).toFixed(6))
+      ]);
+    }
+    rebuildTape();
+    refreshAll();
+  }
+
+  function endTickStroke() {
+    if (!state.tickStroke) {
+      return;
+    }
+    state.tickStroke = null;
+    if (state.customTicks.length) {
+      fitCustomView();
+      setMessage("Drawn ticks added. Step forward to replay them; " +
+        "Clear ticks restores the real tape.");
+    } else {
+      setMessage("Drag into the future to add ticks.");
+    }
+    refreshAll();
+    saveState();
+  }
+
+  function clearCustomTicks() {
+    if (!state.customTicks.length) {
+      return;
+    }
+    const branch = state.customBranch;
+    const ok = window.confirm("Clear the drawn ticks? This restores the real tape and clears " +
+      "all scenario tickets and prediction.");
+    if (!ok) {
+      return;
+    }
+    state.customTicks = [];
+    state.customBranch = null;
+    state.customSpread = 0;
+    state.tickDrawMode = false;
+    state.tickStroke = null;
+    rebuildTape();
+    state.cursor = branch === null ? Math.min(state.cursor, N - 1)
+      : Math.min(state.cursor, branch);
+    for (const scenario of state.scenarios) {
+      scenario.tickets = [];
+      scenario.prediction = emptyPrediction();
+    }
+    state.message = "Drawn ticks cleared; real tape restored. Tickets and prediction cleared.";
+    rebuildSeries();
+    refitFollow();
+    refreshAll();
+    saveState();
+  }
+
   function seriesLength() {
     return isTickMode() ? state.cursor + 1 : bars.length;
   }
 
-  function futureSlots(len) {
-    if (isTickMode()) {
-      return Math.max(40, Math.round(Math.min(len, 700) * 0.18));
+  function customFutureSlots() {
+    if (!state.customTicks.length) {
+      return 0;
     }
-    return Math.max(3, Math.min(12, Math.ceil(len * 0.25)));
+    const pending = Math.max(0, N - (state.cursor + 1));
+    if (isTickMode()) {
+      return pending;
+    }
+    const spec = periodSpec();
+    if (spec.kind === "tickbar") {
+      return Math.ceil(pending / spec.count);
+    }
+    if (!bars.length) {
+      return 0;
+    }
+    return Math.max(0, Math.ceil((TICKS[N - 1][0] - bars[bars.length - 1].t) / spec.ms));
+  }
+
+  function futureSlots(len) {
+    let base;
+    if (isTickMode()) {
+      base = Math.max(40, Math.round(Math.min(len, 700) * 0.18));
+    } else {
+      base = Math.max(3, Math.min(12, Math.ceil(len * 0.25)));
+    }
+    return base + customFutureSlots();
   }
 
   function minViewCount() {
@@ -357,10 +586,9 @@ SCRIPT = r"""
     const len = seriesLength();
     const future = futureSlots(len);
     let count = Math.min(maxViewCount(), Math.max(minViewCount(), len + future));
-    let start = Math.max(0, len - (count - future));
-    if (start < 0) {
-      start = 0;
-    }
+    const reserved = Math.min(future, Math.max(0, count - 10));
+    let start = Math.max(0, len - (count - reserved));
+    start = clamp(start, 0, Math.max(0, len + future - count));
     state.viewStart = start;
     state.viewCount = count;
     state.follow = true;
@@ -375,12 +603,18 @@ SCRIPT = r"""
       return;
     }
     state.period = key;
-    el.period.value = key;
+    syncPeriodButtons();
     rebuildSeries();
     refitFollow();
     state.hover = null;
     refreshAll();
     saveState();
+  }
+
+  function syncPeriodButtons() {
+    document.querySelectorAll("#period-buttons button").forEach(function (button) {
+      button.classList.toggle("active", button.dataset.period === state.period);
+    });
   }
 
   function currentSeriesIndex() {
@@ -509,7 +743,7 @@ SCRIPT = r"""
   }
 
   function expertVisibleTrades() {
-    if (!EXPERT_REPORT || !state.expertVisible) {
+    if (!EXPERT_REPORT || !state.expertVisible || state.customTicks.length) {
       return [];
     }
     const now = currentTs();
@@ -552,6 +786,8 @@ SCRIPT = r"""
       for (let i = start; i <= end; i += 1) {
         low = Math.min(low, bars[i].l);
         high = Math.max(high, bars[i].h);
+        low = Math.min(low, bars[i].ac);
+        high = Math.max(high, bars[i].ac);
       }
       low = Math.min(low, currentAsk());
       high = Math.max(high, currentAsk());
@@ -567,6 +803,13 @@ SCRIPT = r"""
     for (const price of visibleExpertPrices()) {
       low = Math.min(low, price);
       high = Math.max(high, price);
+    }
+    for (const item of customPreviewTicks()) {
+      const x = xForTick(item.index);
+      if (x >= box.left && x <= box.left + box.width) {
+        low = Math.min(low, item.tick[1]);
+        high = Math.max(high, item.tick[1]);
+      }
     }
     if (!Number.isFinite(low) || !Number.isFinite(high)) {
       low = currentBid() - 1;
@@ -614,7 +857,7 @@ SCRIPT = r"""
       if (i % labelEvery !== 0) {
         continue;
       }
-      if (Math.abs(py - bidY) < 12 || Math.abs(py - askY) < 12) {
+      if (Math.abs(py - bidY) < 12) {
         continue;
       }
       if (py < box.top + 4 || py > box.top + box.height - 4) {
@@ -654,7 +897,7 @@ SCRIPT = r"""
   function drawBars(box, y) {
     const start = Math.max(0, Math.floor(state.viewStart));
     const end = Math.min(bars.length - 1, Math.ceil(state.viewStart + state.viewCount) - 1);
-    const bodyWidth = clamp(box.width / state.viewCount * 0.68, 1, 30);
+    const bodyWidth = clamp(box.width / state.viewCount * 0.68, 1, 14);
     for (let i = start; i <= end; i += 1) {
       const bar = bars[i];
       const cx = xForSeries(i);
@@ -681,16 +924,6 @@ SCRIPT = r"""
     if (end < start) {
       return;
     }
-    if (end - start <= 250) {
-      for (let i = start; i <= end; i += 1) {
-        const x = xForSeries(i);
-        ctx.strokeStyle = "rgba(255, 64, 64, 0.18)";
-        ctx.beginPath();
-        ctx.moveTo(Math.round(x) + 0.5, y(TICKS[i][1]));
-        ctx.lineTo(Math.round(x) + 0.5, y(TICKS[i][2]));
-        ctx.stroke();
-      }
-    }
     ctx.beginPath();
     for (let i = start; i <= end; i += 1) {
       const x = xForSeries(i);
@@ -704,14 +937,45 @@ SCRIPT = r"""
     ctx.strokeStyle = C.up;
     ctx.lineWidth = 1.2;
     ctx.stroke();
-    if (end - start <= 250) {
-      ctx.fillStyle = C.up;
+  }
+
+  function drawAskLine(box, y) {
+    if (isTickMode()) {
+      const start = Math.max(0, Math.floor(state.viewStart));
+      const end = Math.min(state.cursor, Math.ceil(state.viewStart + state.viewCount) - 1);
+      if (end < start) {
+        return;
+      }
+      ctx.beginPath();
       for (let i = start; i <= end; i += 1) {
-        ctx.beginPath();
-        ctx.arc(xForSeries(i), y(TICKS[i][1]), 1.4, 0, Math.PI * 2);
-        ctx.fill();
+        const x = xForSeries(i);
+        const py = y(TICKS[i][2]);
+        if (i === start) {
+          ctx.moveTo(x, py);
+        } else {
+          ctx.lineTo(x, py);
+        }
+      }
+    } else {
+      const start = Math.max(0, Math.floor(state.viewStart));
+      const end = Math.min(bars.length - 1, Math.ceil(state.viewStart + state.viewCount) - 1);
+      if (end < start) {
+        return;
+      }
+      ctx.beginPath();
+      for (let i = start; i <= end; i += 1) {
+        const x = xForSeries(i);
+        const py = y(bars[i].ac);
+        if (i === start) {
+          ctx.moveTo(x, py);
+        } else {
+          ctx.lineTo(x, py);
+        }
       }
     }
+    ctx.strokeStyle = C.ask;
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 
   function drawExpertMarkers(box, y) {
@@ -754,48 +1018,31 @@ SCRIPT = r"""
 
   function drawCurrentPrices(box, y) {
     const bid = currentBid();
-    const ask = currentAsk();
     const bidY = y(bid);
-    const askY = y(ask);
     ctx.save();
     ctx.beginPath();
     ctx.rect(box.left, box.top, box.width, box.height);
     ctx.clip();
-    ctx.strokeStyle = C.up;
-    ctx.lineWidth = 1;
     ctx.beginPath();
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = "#707070";
+    ctx.lineWidth = 1;
     ctx.moveTo(box.left, Math.round(bidY) + 0.5);
     ctx.lineTo(box.left + box.width, Math.round(bidY) + 0.5);
     ctx.stroke();
-    ctx.strokeStyle = C.down;
-    ctx.beginPath();
-    ctx.moveTo(box.left, Math.round(askY) + 0.5);
-    ctx.lineTo(box.left + box.width, Math.round(askY) + 0.5);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(xForSeries(currentSeriesIndex()), bidY, 3, 0, Math.PI * 2);
-    ctx.fillStyle = C.up;
-    ctx.fill();
+    ctx.setLineDash([]);
     ctx.restore();
-    let bidTop = clamp(bidY - 8, box.top + 1, box.top + box.height - 17);
-    let askTop = clamp(askY - 8, box.top + 1, box.top + box.height - 17);
-    if (Math.abs(bidTop - askTop) < 17) {
-      askTop = bidTop - 17;
-      if (askTop < box.top + 1) {
-        askTop = bidTop + 17;
-      }
-    }
-    drawPriceTag(box, bidTop, formatPrice(bid), C.up, "#000000");
-    drawPriceTag(box, askTop, formatPrice(ask), C.down, "#ffffff");
+    drawPriceTag(box, clamp(bidY - 8, box.top + 1, box.top + box.height - 17),
+      formatPrice(bid), C.up, "#000000");
   }
 
   function drawPriceTag(box, top, text, background, color) {
     ctx.font = "11px Tahoma, Arial, sans-serif";
-    const width = box.right - 6;
-    const left = box.left + box.width + 3;
+    const width = box.right - 4;
+    const left = box.left + box.width + 2;
     ctx.fillStyle = background;
     ctx.fillRect(left, top, width, 16);
-    ctx.strokeStyle = "#000000";
+    ctx.strokeStyle = background;
     ctx.lineWidth = 1;
     ctx.strokeRect(left + 0.5, top + 0.5, width - 1, 15);
     ctx.fillStyle = color;
@@ -846,6 +1093,34 @@ SCRIPT = r"""
       }
     }
     return { count: scored.length, mae: sum / scored.length, hitRate: hits / scored.length };
+  }
+
+  function drawCustomPreview(box, y) {
+    const items = customPreviewTicks();
+    if (!items.length) {
+      return;
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(box.left, box.top, box.width, box.height);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.moveTo(xForSeries(currentSeriesIndex()), y(currentBid()));
+    for (const item of items) {
+      ctx.lineTo(xForTick(item.index), y(item.tick[1]));
+    }
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = C.custom;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const item of items) {
+      ctx.beginPath();
+      ctx.arc(xForTick(item.index), y(item.tick[1]), 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = C.custom;
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   function drawPrediction(box, y) {
@@ -906,6 +1181,42 @@ SCRIPT = r"""
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText(text, left + 6, top + 8);
+  }
+
+  function drawPredictionPreview(box, y, range) {
+    if (!state.drawMode || state.tickDrawMode || !state.hover || !state.hover.future) {
+      return;
+    }
+    const price = snapPrice(range.low + (box.top + box.height - state.hover.y) / box.height *
+      (range.high - range.low));
+    const x = xForSeries(state.hover.seriesIndex);
+    const points = predictionPoints();
+    let startX = xForSeries(currentSeriesIndex());
+    let startY = y(currentBid());
+    if (points.length) {
+      const last = points[points.length - 1];
+      startX = xForTick(last.i);
+      startY = y(last.price);
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(box.left, box.top, box.width, box.height);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(x, y(price));
+    ctx.setLineDash([2, 3]);
+    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = C.predict;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(x, y(price), 3.2, 0, Math.PI * 2);
+    ctx.strokeStyle = C.predict;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+    drawPill(x, y(price) - 18, "ADD " + formatPrice(price), C.predict, "#ffffff");
   }
 
   function drawGhosts(box, y) {
@@ -1058,15 +1369,15 @@ SCRIPT = r"""
     const spec = periodSpec();
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.font = "bold 12px Tahoma, Arial, sans-serif";
+    ctx.font = "bold 11px Tahoma, Arial, sans-serif";
     ctx.fillStyle = C.text;
     ctx.fillText(DATA.symbol + ", " + spec.short, box.left + 4, 4);
-    ctx.font = "11px Tahoma, Arial, sans-serif";
-    ctx.fillStyle = C.axis;
+    ctx.font = "10px Tahoma, Arial, sans-serif";
     if (isTickMode()) {
       const tick = currentTick();
-      ctx.fillText("Bid " + formatPrice(tick[1]) + "   Ask " + formatPrice(tick[2]) +
-        "   Spread " + (tick[2] - tick[1]).toFixed(DIGITS), box.left + 4, 18);
+      ctx.fillStyle = C.ask;
+      ctx.fillText("B " + formatPrice(tick[1]) + "   A " + formatPrice(tick[2]) +
+        "   S " + formatPrice(tick[2] - tick[1]), box.left + 4, 19);
       return;
     }
     let shown = currentBar();
@@ -1076,10 +1387,13 @@ SCRIPT = r"""
     if (!shown) {
       return;
     }
-    const volume = spec.kind === "tickbar" ? shown.v + "/" + spec.count : String(shown.v);
+    ctx.fillStyle = C.ohlc;
     ctx.fillText("O " + formatPrice(shown.o) + "   H " + formatPrice(shown.h) +
       "   L " + formatPrice(shown.l) + "   C " + formatPrice(shown.c) +
-      "   Ticks " + volume, box.left + 4, 18);
+      "   V " + shown.v, box.left + 4, 19);
+    ctx.fillStyle = C.ask;
+    ctx.fillText("B " + formatPrice(shown.c) + "   A " + formatPrice(shown.ac) +
+      "   S " + formatPrice(shown.ac - shown.c), box.left + 4, 32);
   }
 
   function draw() {
@@ -1110,8 +1424,11 @@ SCRIPT = r"""
     } else {
       drawBars(box, y);
     }
+    drawAskLine(box, y);
+    drawCustomPreview(box, y);
     drawExpertMarkers(box, y);
     drawPrediction(box, y);
+    drawPredictionPreview(box, y, range);
     drawGhosts(box, y);
     ctx.restore();
     drawCurrentPrices(box, y);
@@ -1218,7 +1535,8 @@ SCRIPT = r"""
     const spec = periodSpec();
     let center = DATA.symbol + " · " + spec.label + " · " + seriesLength() +
       (isTickMode() ? " ticks" : " bars") + " · tick " + (state.cursor + 1) +
-      " / " + N;
+      " / " + N + " · view " + state.viewCount + (isTickMode() ? " ticks" : " bars") +
+      (state.customTicks.length ? " · drawn" : "");
     if (state.hover) {
       if (state.hover.future) {
         center = "Future hidden · click ahead only while drawing";
@@ -1233,7 +1551,20 @@ SCRIPT = r"""
       center = state.message;
     }
     el.statusCenter.textContent = center;
-    el.statusRight.textContent = N.toLocaleString() + " Dukascopy ticks · UTC";
+    el.statusRight.textContent = state.customTicks.length
+      ? REAL_N.toLocaleString() + " real + " + state.customTicks.length.toLocaleString() +
+        " drawn"
+      : N.toLocaleString() + " Dukascopy ticks · UTC";
+  }
+
+  function refreshTapeTag() {
+    if (state.tickDrawMode) {
+      el.futureTag.textContent = "DRAW TICKS";
+    } else if (state.customTicks.length) {
+      el.futureTag.textContent = "DRAWN TAPE";
+    } else {
+      el.futureTag.textContent = "FUTURE";
+    }
   }
 
   function refreshReplay() {
@@ -1579,7 +1910,11 @@ SCRIPT = r"""
 
   function toggleDraw() {
     state.drawMode = !state.drawMode;
-    setMessage(state.drawMode ? "Draw mode on. Click future chart points." : "Draw mode off.");
+    if (state.drawMode) {
+      state.tickDrawMode = false;
+    }
+    setMessage(state.drawMode ? "Draw prediction on. Click future chart points."
+      : "Draw prediction off.");
     refreshAll();
   }
 
@@ -1656,11 +1991,6 @@ SCRIPT = r"""
     if (x < box.left || x > box.left + box.width || y < box.top || y > box.top + box.height) {
       return;
     }
-    const raw = seriesIndexAtX(x);
-    if (raw < seriesLength()) {
-      setMessage("Draw ahead of the cursor; step forward or click farther right.");
-      return;
-    }
     if (state.cursor >= N - 1) {
       setMessage("The cursor is at the last tick; reset to draw again.");
       return;
@@ -1687,6 +2017,7 @@ SCRIPT = r"""
     state.hover = null;
     refreshReplay();
     refreshDataWindow();
+    refreshStatus();
     draw();
   }
 
@@ -1703,6 +2034,7 @@ SCRIPT = r"""
     state.hover = null;
     refreshReplay();
     refreshDataWindow();
+    refreshStatus();
     draw();
   }
 
@@ -1712,16 +2044,23 @@ SCRIPT = r"""
     state.hover = null;
     refreshReplay();
     refreshDataWindow();
+    refreshStatus();
     draw();
   }
 
   function onWheel(event) {
     event.preventDefault();
+    event.stopPropagation();
     const rect = canvas.getBoundingClientRect();
-    zoomBy(event.deltaY > 0 ? 1.2 : 0.8, event.clientX - rect.left);
+    const factor = event.deltaY > 0 ? 1.2 : 0.8;
+    zoomBy(factor, event.clientX - rect.left);
   }
 
   function onMouseDown(event) {
+    if (state.tickDrawMode) {
+      startTickStroke(event);
+      return;
+    }
     const rect = canvas.getBoundingClientRect();
     state.dragging = {
       x: event.clientX,
@@ -1734,6 +2073,10 @@ SCRIPT = r"""
   }
 
   function onMouseMove(event) {
+    if (state.tickStroke) {
+      addTickStrokePoint(event);
+      return;
+    }
     if (state.dragging) {
       const dx = event.clientX - state.dragging.x;
       if (Math.abs(dx) > 2) {
@@ -1743,7 +2086,7 @@ SCRIPT = r"""
         state.follow = false;
         state.hover = null;
         refreshReplay();
-        refreshDataWindow();
+        refreshStatus();
         draw();
       }
       return;
@@ -1755,6 +2098,10 @@ SCRIPT = r"""
   }
 
   function onMouseUp(event) {
+    if (state.tickStroke) {
+      endTickStroke();
+      return;
+    }
     const wasDragging = state.dragging !== null;
     const moved = state.dragMoved;
     state.dragging = null;
@@ -1785,7 +2132,7 @@ SCRIPT = r"""
       format: STORAGE_FORMAT,
       version: STORAGE_VERSION,
       datasetId: DATA.datasetId,
-      tickCount: N,
+      tickCount: REAL_N,
       cursor: state.cursor,
       period: state.period,
       gridStep: state.gridStep,
@@ -1794,6 +2141,9 @@ SCRIPT = r"""
       activeId: state.activeId,
       expertVisible: state.expertVisible,
       excludedExpertTickets: Array.from(state.excludedExpertTickets),
+      customBranch: state.customBranch,
+      customTicks: state.customTicks,
+      customSpread: state.customSpread,
       scenarios: state.scenarios.map(function (scenario) {
         return {
           id: scenario.id,
@@ -1944,12 +2294,47 @@ SCRIPT = r"""
     if (parsed.datasetId !== DATA.datasetId) {
       throw new Error("this scenario file belongs to a different dataset");
     }
-    if (parsed.tickCount !== N) {
+    if (parsed.tickCount !== REAL_N) {
       throw new Error("this scenario file has a different tick count");
     }
     if (!Array.isArray(parsed.scenarios) || !parsed.scenarios.length) {
       throw new Error("this scenario file has no scenarios");
     }
+    state.customTicks = [];
+    state.customBranch = null;
+    state.customSpread = 0;
+    if (Array.isArray(parsed.customTicks) && parsed.customTicks.length) {
+      const branch = Math.round(Number(parsed.customBranch));
+      if (Number.isFinite(branch) && branch >= 0 && branch < REAL_N) {
+        const ticks = [];
+        let lastTs = REAL_TICKS[branch][0];
+        let usable = true;
+        const limit = Math.min(parsed.customTicks.length, 20000);
+        for (let i = 0; i < limit; i += 1) {
+          const raw = parsed.customTicks[i];
+          if (!Array.isArray(raw) || raw.length < 3) {
+            usable = false;
+            break;
+          }
+          const ts = Number(raw[0]);
+          const bid = Number(raw[1]);
+          const ask = Number(raw[2]);
+          if (!Number.isFinite(ts) || !Number.isFinite(bid) || !Number.isFinite(ask) ||
+              ts <= lastTs || bid <= 0 || ask < bid) {
+            usable = false;
+            break;
+          }
+          ticks.push([ts, bid, ask]);
+          lastTs = ts;
+        }
+        if (usable && ticks.length) {
+          state.customTicks = ticks;
+          state.customBranch = branch;
+          state.customSpread = Number(parsed.customSpread) || (ticks[0][2] - ticks[0][1]);
+        }
+      }
+    }
+    rebuildTape();
     const cursor = clamp(Math.round(Number(parsed.cursor) || 0), 0, N - 1);
     const scenarios = [];
     const limit = Math.min(parsed.scenarios.length, 40);
@@ -2036,7 +2421,7 @@ SCRIPT = r"""
         restoreSession(JSON.parse(String(reader.result)));
         el.lots.value = formatLots(state.lotSize);
         el.moveSize.value = state.moveSize.toFixed(2);
-        el.period.value = state.period;
+        syncPeriodButtons();
         applyGridSelect();
         rebuildSeries();
         refitFollow();
@@ -2223,7 +2608,7 @@ SCRIPT = r"""
     el.sessionExpert.textContent = EXPERT.name +
       (EXPERT_REPORT ? " · report loaded" : " · inputs only");
     el.expertVisible.checked = state.expertVisible;
-    el.expertVisible.disabled = !EXPERT_REPORT;
+    el.expertVisible.disabled = !EXPERT_REPORT || state.customTicks.length > 0;
     el.expertSummary.innerHTML = "";
     if (EXPERT_REPORT) {
       el.expertSummary.appendChild(summaryItem("Report",
@@ -2234,6 +2619,19 @@ SCRIPT = r"""
         EXPERT_REPORT.foundWindowTrades + " placed", ""));
       el.expertSummary.appendChild(summaryItem("Window start",
         formatMoney(EXPERT_REPORT.windowStartBalance), ""));
+      if (state.customTicks.length) {
+        el.expertSummary.appendChild(summaryItem("Tape", "drawn ticks", ""));
+        el.expertFutureCount.textContent = "";
+        el.expertTradesBody.innerHTML = "";
+        el.expertTradesTable.classList.add("hidden");
+        el.expertTradesEmpty.classList.remove("hidden");
+        el.expertTradesEmpty.textContent = "Drawn tape active. Clear the drawn ticks to " +
+          "inspect the real report closes and what-if.";
+        el.expertWhatIf.innerHTML = "";
+        el.expertNote.textContent = "The expert report is tied to the real tape. Draw ticks " +
+          "is for your own hypothetical tape; clear it to return to the expert view.";
+        return;
+      }
       el.expertSummary.appendChild(summaryItem("What-if so far",
         formatMoney(EXPERT_REPORT.windowStartBalance + expertWindowProfit(true).sum), ""));
       const future = EXPERT_TRADES.filter(function (trade) {
@@ -2391,10 +2789,12 @@ SCRIPT = r"""
     document.querySelectorAll('[data-action="both"]').forEach(function (button) {
       button.classList.toggle("active", state.bothWays);
     });
+    el.drawTicks.classList.toggle("active", state.tickDrawMode);
+    el.clearTicks.disabled = state.customTicks.length === 0;
     el.predUndo.disabled = count === 0;
     el.predClear.disabled = count === 0;
     if (count === 0) {
-      el.predStats.textContent = "No prediction points. Turn on Draw mode and click ahead.";
+      el.predStats.textContent = "No prediction points. Turn on Draw prediction and click ahead.";
     } else {
       const mae = stats.mae === null ? "-" : formatPrice(stats.mae);
       const hit = stats.hitRate === null ? "-" : Math.round(stats.hitRate * 100) + "%";
@@ -2516,6 +2916,9 @@ SCRIPT = r"""
     el.sessionDay.textContent = DATA.day;
     el.sessionWindow.textContent = DATA.window.from + "-" + DATA.window.to + " UTC";
     el.sessionTicks.textContent = N.toLocaleString();
+    el.sessionTape.textContent = state.customTicks.length
+      ? "Drawn · " + state.customTicks.length.toLocaleString() + " ticks"
+      : "Real ticks";
     el.sessionExpert.textContent = EXPERT ? (EXPERT.name || "Expert") : "None";
   }
 
@@ -2530,12 +2933,13 @@ SCRIPT = r"""
     refreshReplay();
     refreshDataWindow();
     refreshStatus();
+    refreshTapeTag();
     refreshTickets();
     refreshExpert();
     refreshPrediction();
     refreshScenarios();
     refreshSession();
-    el.period.value = state.period;
+    syncPeriodButtons();
     applyGridSelect();
     draw();
   }
@@ -2555,7 +2959,7 @@ SCRIPT = r"""
         hitRate: stats.hitRate
       });
     }
-    if (EXPERT_REPORT) {
+    if (EXPERT_REPORT && !state.customTicks.length) {
       const profit = expertWindowProfit(false);
       rows.push({
         name: "Expert report (window, $10k)",
@@ -2644,6 +3048,10 @@ SCRIPT = r"""
       toggleBoth();
     } else if (command === "draw") {
       toggleDraw();
+    } else if (command === "drawticks") {
+      toggleTickDraw();
+    } else if (command === "clearticks") {
+      clearCustomTicks();
     } else if (command === "undo") {
       undoPrediction();
     } else if (command === "clear") {
@@ -2690,7 +3098,9 @@ SCRIPT = r"""
   }
 
   function bindEvents() {
-    el.period.addEventListener("change", function () { setPeriod(el.period.value); });
+    document.querySelectorAll("#period-buttons button").forEach(function (button) {
+      button.addEventListener("click", function () { setPeriod(button.dataset.period); });
+    });
     el.grid.addEventListener("change", onGridChange);
     el.zoomout.addEventListener("click", zoomOut);
     el.zoomin.addEventListener("click", zoomIn);
@@ -2708,6 +3118,8 @@ SCRIPT = r"""
     document.querySelectorAll('[data-action="both"]').forEach(function (button) {
       button.addEventListener("click", toggleBoth);
     });
+    el.drawTicks.addEventListener("click", toggleTickDraw);
+    el.clearTicks.addEventListener("click", clearCustomTicks);
     el.predUndo.addEventListener("click", undoPrediction);
     el.predClear.addEventListener("click", clearPrediction);
     el.moveSize.addEventListener("input", function () {
@@ -2751,6 +3163,7 @@ SCRIPT = r"""
     canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("mousedown", onMouseDown);
     canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("dblclick", followCursor);
     canvas.addEventListener("mouseup", onMouseUp);
     window.addEventListener("mouseup", onMouseUp);
     canvas.addEventListener("mouseleave", onMouseLeave);
@@ -2772,6 +3185,8 @@ SCRIPT = r"""
         }
       } else if (event.key === "d" || event.key === "D") {
         toggleDraw();
+      } else if (event.key === "t" || event.key === "T") {
+        toggleTickDraw();
       } else if (event.key === "b" || event.key === "B") {
         toggleBoth();
       } else if (event.key === "+" || event.key === "=") {
@@ -2802,6 +3217,7 @@ SCRIPT = r"""
       state.cursor = startCursorIndex();
       state.period = "t100";
     }
+    rebuildTape();
     rebuildSeries();
     refitFollow();
     buildExpertInputs();
@@ -2810,7 +3226,7 @@ SCRIPT = r"""
     bindEvents();
     el.lots.value = formatLots(state.lotSize);
     el.moveSize.value = state.moveSize.toFixed(2);
-    el.period.value = state.period;
+    syncPeriodButtons();
     applyGridSelect();
     setTerminalTab(loaded ? "trade" : "help");
     refreshAll();

@@ -7,14 +7,14 @@ PAGE_BODY = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LossLens Playground</title>
+<title>X &mdash; Playground</title>
 <style>
   :root {
     --panel: #f0f0f0;
     --panel-dark: #e4e4e4;
     --line: #a0a0a0;
     --text: #111;
-    --muted: #666;
+    --muted: #888;
     --accent: #2f6fb3;
     --chart: #000;
     --up: #00c000;
@@ -41,7 +41,8 @@ PAGE_BODY = r"""<!DOCTYPE html>
     background: transparent; color: var(--text); text-align: left; }
   .dropdown button:hover { background: #d8e6f2; }
   .dropdown .separator { height: 1px; margin: 2px 4px; background: #c0c0c0; }
-  #brand { margin-left: auto; color: var(--muted); font-weight: bold; letter-spacing: .3px; }
+  #brand { margin-left: auto; color: #111; font-weight: bold; font-size: 12px; }
+  .brand-sub { color: var(--muted); margin-left: 6px; font-size: 11px; font-weight: normal; }
   #dataset-line { margin-left: 10px; color: var(--muted); font-size: 10px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #paused-badge { margin-left: 8px; padding: 1px 6px; border: 1px solid #700;
@@ -49,11 +50,48 @@ PAGE_BODY = r"""<!DOCTYPE html>
   #toolbar { display: flex; align-items: center; gap: 4px; padding: 0 6px;
     background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; }
   #toolbar .label { color: var(--muted); margin: 0 2px; white-space: nowrap; }
-  #toolbar button, #replaybar button, .btn { height: 22px; min-width: 28px; padding: 0 7px;
-    border: 1px solid #9a9a9a; background: #fbfbfb; color: var(--text); white-space: nowrap; }
+  #toolbar button, #replaybar button, .btn {
+    height: 22px;
+    min-width: 28px;
+    padding: 0 7px;
+    border: 1px solid #9a9a9a;
+    border-top-color: #ffffff;
+    border-left-color: #ffffff;
+    border-bottom-color: #707070;
+    border-right-color: #707070;
+    background: #f0f0f0;
+    color: var(--text);
+    white-space: nowrap;
+  }
   #toolbar button:hover, #replaybar button:hover, .btn:hover { background: #e8f1fa; }
-  #toolbar button.active, .btn.active { background: var(--accent); border-color: #245786;
-    color: #fff; font-weight: bold; }
+  #toolbar button.active, .btn.active {
+    background: #d8d8d8;
+    border-top-color: #707070;
+    border-left-color: #707070;
+    border-bottom-color: #ffffff;
+    border-right-color: #ffffff;
+    color: #111;
+    font-weight: bold;
+  }
+  .period-buttons { display: flex; gap: 1px; }
+  .period-buttons button {
+    min-width: 30px;
+    padding: 0 5px;
+    background: #f0f0f0;
+    border: 1px solid #9a9a9a;
+    border-top-color: #ffffff;
+    border-left-color: #ffffff;
+    border-bottom-color: #707070;
+    border-right-color: #707070;
+  }
+  .period-buttons button.active {
+    background: #d8d8d8;
+    border-top-color: #707070;
+    border-left-color: #707070;
+    border-bottom-color: #ffffff;
+    border-right-color: #ffffff;
+    font-weight: bold;
+  }
   #toolbar select { height: 22px; border: 1px solid #9a9a9a; background: #fbfbfb;
     color: var(--text); padding: 0 3px; }
   #period-select { width: 150px; }
@@ -116,7 +154,7 @@ PAGE_BODY = r"""<!DOCTYPE html>
   #trade-message { color: var(--muted); }
   .btn.buy { background: #2f6fb3; border-color: #245786; color: #fff; }
   .btn.sell { background: #a53a3a; border-color: #7a2626; color: #fff; }
-  .btn.primary { background: var(--accent); border-color: #245786; color: #fff; }
+  .btn.primary { background: #e4e4e4; border-color: #9a9a9a; color: #111; font-weight: bold; }
   .data-table { width: 100%; border-collapse: collapse; background: #fff;
     font-variant-numeric: tabular-nums; }
   .data-table th { padding: 2px 5px; border: 1px solid #c8c8c8; background: var(--panel-dark);
@@ -248,7 +286,9 @@ PAGE_BODY = r"""<!DOCTYPE html>
     <div class="menu" data-menu="tools">
       <button type="button">Tools</button>
       <div class="dropdown">
-        <button type="button" data-command="draw">Draw mode</button>
+        <button type="button" data-command="draw">Draw prediction</button>
+        <button type="button" data-command="drawticks">Draw ticks</button>
+        <button type="button" data-command="clearticks">Clear drawn ticks</button>
         <button type="button" data-command="undo">Undo prediction point</button>
         <button type="button" data-command="clear">Clear prediction</button>
         <button type="button" data-command="both">Both ways</button>
@@ -264,29 +304,24 @@ PAGE_BODY = r"""<!DOCTYPE html>
         <button type="button" data-command="help">Keyboard</button>
       </div>
     </div>
-    <span id="brand">LOSS-LENS</span>
+    <span id="brand">X</span><span class="brand-sub">Playground</span>
     <span id="dataset-line"></span>
     <span id="paused-badge">PAUSED</span>
   </div>
   <div id="toolbar">
-    <span class="label">Period</span>
-    <select id="period-select" aria-label="Chart period">
-      <optgroup label="Tick bars (real ticks)">
-        <option value="tick">Tick line</option>
-        <option value="t1">1 tick / bar</option>
-        <option value="t10">10 ticks / bar</option>
-        <option value="t100" selected>100 ticks / bar</option>
-        <option value="t500">500 ticks / bar</option>
-        <option value="t1000">1,000 ticks / bar</option>
-      </optgroup>
-      <optgroup label="Time bars (built from ticks)">
-        <option value="m1">1 minute</option>
-        <option value="m5">5 minutes</option>
-        <option value="m15">15 minutes</option>
-        <option value="m30">30 minutes</option>
-        <option value="h1">1 hour</option>
-      </optgroup>
-    </select>
+    <div class="period-buttons" id="period-buttons" aria-label="Chart period">
+      <button type="button" data-period="tick">Tick</button>
+      <button type="button" data-period="t1">1T</button>
+      <button type="button" data-period="t10">10T</button>
+      <button type="button" data-period="t100" class="active">100T</button>
+      <button type="button" data-period="t500">500T</button>
+      <button type="button" data-period="t1000">1K</button>
+      <button type="button" data-period="m1">M1</button>
+      <button type="button" data-period="m5">M5</button>
+      <button type="button" data-period="m15">M15</button>
+      <button type="button" data-period="m30">M30</button>
+      <button type="button" data-period="h1">H1</button>
+    </div>
     <span class="separator"></span>
     <button type="button" id="zoomout" title="Zoom out">-</button>
     <button type="button" id="zoomin" title="Zoom in">+</button>
@@ -303,10 +338,12 @@ PAGE_BODY = r"""<!DOCTYPE html>
       <option value="custom">Custom</option>
     </select>
     <span class="separator"></span>
-    <button type="button" id="draw-toggle" data-action="draw">Draw mode</button>
+    <button type="button" id="draw-toggle" data-action="draw">Draw prediction</button>
+    <button type="button" id="draw-ticks">Draw ticks</button>
+    <button type="button" id="clear-ticks" disabled>Clear ticks</button>
     <button type="button" id="both-ways" data-action="both">Both ways</button>
-    <button type="button" id="open-expert">Expert</button>
-    <span id="toolbar-hint">Wheel zoom &middot; drag to pan</span>
+    <button type="button" id="open-expert">Inputs</button>
+    <span id="toolbar-hint">Wheel zoom &middot; drag to pan &middot; arrows move</span>
   </div>
   <div id="replaybar">
     <button type="button" id="reset">Reset</button>
@@ -435,7 +472,7 @@ PAGE_BODY = r"""<!DOCTYPE html>
       </div>
       <div id="pane-prediction" class="tab-pane">
         <div class="prediction-actions">
-          <button type="button" class="btn" data-action="draw">Draw mode</button>
+          <button type="button" class="btn" data-action="draw">Draw prediction</button>
           <button type="button" class="btn" data-action="both">Both ways</button>
           <button type="button" id="pred-undo" class="btn">Undo</button>
           <button type="button" id="pred-clear" class="btn">Clear</button>
@@ -444,8 +481,10 @@ PAGE_BODY = r"""<!DOCTYPE html>
         <label class="field">Fixed move &plusmn;$ <input id="move-size" type="number"
           min="0.01" step="0.01" value="1.00"></label>
         <div id="move-preview"></div>
-        <p class="note">Draw mode: click future points. They snap to the grid. Both ways mirrors
-          the drawn path down. The real ticks score every reached point.</p>
+        <p class="note">Draw prediction: click future points. They snap to the grid. Both ways
+          mirrors the drawn path down. The real ticks score every reached point.
+          Draw ticks: drag a gold path into the future; it replaces the real future until you
+          clear it.</p>
       </div>
       <div id="pane-scenarios" class="tab-pane">
         <div id="scenario-list" class="scenario-list"></div>
@@ -472,6 +511,7 @@ PAGE_BODY = r"""<!DOCTYPE html>
           <span>Day</span><b id="session-day">-</b>
           <span>Window</span><b id="session-window">-</b>
           <span>Ticks</span><b id="session-ticks">-</b>
+          <span>Tape</span><b id="session-tape">Real ticks</b>
           <span>Source</span><b>Dukascopy ticks in the local store</b>
           <span>Expert</span><b id="session-expert">-</b>
         </div>
@@ -496,8 +536,11 @@ PAGE_BODY = r"""<!DOCTYPE html>
               <li>Open the <b>Trade</b> tab below and freeze this tick: <b>Buy</b> at the ask,
                 <b>Sell</b> at the bid. S/L and T/P are optional and are checked on every
                 revealed tick.</li>
-              <li>Turn on <b>Draw mode</b> and click future points. <b>Both ways</b> mirrors the
-                path. The chart shows MAE and direction once the ticks arrive.</li>
+              <li>Turn on <b>Draw prediction</b> and click future points. <b>Both ways</b> mirrors
+                the path. The chart shows MAE and direction once the ticks arrive.</li>
+              <li><b>Draw ticks</b>: drag a light-grey path into the future from the cursor. It
+                becomes your tape; step forward to replay it. <b>Clear ticks</b> restores the
+                real future.</li>
               <li>Add scenarios. They share the cursor; each has its own tickets and prediction.
                 <b>Run to end</b> opens the scoreboard.</li>
               <li>Load an expert <b>.set/.mq4</b> and tester report with
@@ -511,7 +554,8 @@ PAGE_BODY = r"""<!DOCTYPE html>
             <h3>Keyboard</h3>
             <table>
               <tr><td>Space</td><td>Next tick</td></tr>
-              <tr><td>D</td><td>Draw mode on/off</td></tr>
+              <tr><td>D</td><td>Draw prediction on/off</td></tr>
+              <tr><td>T</td><td>Draw ticks on/off</td></tr>
               <tr><td>B</td><td>Both ways on/off</td></tr>
               <tr><td>+ / -</td><td>Zoom in / out</td></tr>
               <tr><td>Left / Right</td><td>Pan the chart</td></tr>
@@ -520,9 +564,10 @@ PAGE_BODY = r"""<!DOCTYPE html>
               <tr><td>Esc</td><td>Close a menu or the scoreboard</td></tr>
             </table>
             <h3>What the colours mean</h3>
-            <p>Green is up or bid; red is down or ask. Blue is the Playground's editing layer:
-              the replay cursor, the prediction and the active control. Expert closes are grey
-              triangles: down for a closed buy, up for a closed sell.</p>
+            <p>Green is up or bid; red is down or ask. Pink is the real ask line. Blue is the
+              Playground's editing layer: the replay cursor, the prediction and the active
+              control. Light grey is your drawn tick tape. Expert closes are grey triangles:
+              down for a closed buy, up for a closed sell.</p>
             <p class="note">The report gives close times and prices only. Entry markers need a
               journal or a decision log, which is not part of this build.</p>
           </div>
