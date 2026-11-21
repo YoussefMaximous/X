@@ -1,14 +1,14 @@
-# Builder handoff — after inc-2 part B send-back 4
+# Builder handoff — after inc-2 part B send-back 5
 
-Updated: 2026-11-21 · Increment: inc-2 part B send-back 4 · Report: `work/report-inc-2b5.md`
+Updated: 2026-11-21 · Increment: inc-2 part B send-back 5 · Report: `work/report-inc-2b6.md`
 
 ## Goal
 
-Write the two FXT date fields correctly: 00:00 UTC on `--from` and on the day after `--to`.
+Write the FXT only up to broker midnight after `--to`, so MT4 keeps the file instead of rebuilding it.
 
 ## State and how to check it
 
-The fix is committed locally (`6b8bdc5`; report commit next). The other agent's earlier edit was already reverted before this job; the tree was clean at `ef4597b`.
+The cutoff is committed locally (`0394ace`; report commit next). No MT4 was started in this job.
 
 ```text
 python -m pytest -q
@@ -18,28 +18,29 @@ python -m mypy
 python -m losslens mt4 export --symbol XAUUSD --from 2026-03-03 --to 2026-03-03
 ```
 
-Expected: 88 tests pass; tools exit 0; export reports 554,076 records and a 31,028,984-byte file.
+Expected: 89 tests pass; tools exit 0; export reports 1,320 FXT bars, 542,939 records and a 30,405,312-byte read-only file.
 
 ## Done (evidence in the report)
 
-- Header 472 = 1772496000 (2026-03-03 00:00 UTC).
-- Header 476 = 1772582400 (2026-03-04 00:00 UTC, day after `--to`).
-- Bar count 1,380, bar times 1772503200/1772589540, spread 30 unchanged.
-- File size 31,028,984 = 728 + 554,076 × 56; read-only.
-- Five-tick test checks the two date fields and every unpatched header byte.
-- No MT4 started, no `accounts.ini` opened, no login typed.
+- FXT drops every tick whose server time is at or after 1772582400, which is field 476 = broker midnight after `--to`.
+- 2026-03-03: 216 = 1320, 220 = 1772503200, 224 = 1772582340, 252 = 30, 472 = 1772496000, 476 = 1772582400.
+- 542,939 records; last tick second 1772582399; zero records at or after the cutoff.
+- 11,137 late ticks dropped; file 30,405,312 bytes; read-only.
+- New test: one second before the cutoff is present, at the cutoff and after are absent.
+- HST unchanged at 1,380 bars.
 
 ## Ruled out / do not retry
 
-- Using server time or the first/last tick for 472/476: both were wrong; MT4 restored UTC date bounds.
-- Changing bar count or bar times in this send-back: not done.
-- Starting MT4 to test: the Lead runs it.
+- Changing the date fields 472/476 as the rebuild trigger: fixed, MT4 still rebuilt (Lead's run).
+- Matching all six header numbers to MT4's values, and making our file newer than the minute bars: both still rebuilt (Lead's runs).
+- Writing all 1,380 UTC-day bars: MT4 keeps only the 1,320 before broker midnight.
 
 ## Open
 
-- Whether MT4 accepts the corrected file is the Lead's run.
+- Whether MT4 now keeps the file is the Lead's run.
+- Part C is not briefed until MT4 keeps our ticks.
 - `data/` (including the copy and measured file) is ignored; no `.fxt`/`.hst`/program is tracked.
 
 ## Next step
 
-Do "Send-back 5 of part B" in `.teams/increments/inc-2.md`. Stop the tick file at broker midnight. Do not start either MT4. Tell the user "Report inc-2b6 is ready".
+Lead runs the new export in the logged-in MT4. If MT4 keeps it, brief part C.
