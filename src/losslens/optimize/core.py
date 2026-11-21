@@ -11,6 +11,9 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from ConfigSpace import Configuration, ConfigurationSpace, Float, Integer
+from smac import HyperparameterOptimizationFacade, Scenario
+
 from losslens.mt4.presets import ExpertInput, render_set
 
 
@@ -299,6 +302,96 @@ def run_trials(
         records.append(record)
         with results_path.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
+    return records
+
+
+def _snap(spec: ParameterSpec, value: float) -> float:
+    if spec.step > 0:
+        steps = round((value - spec.low) / spec.step)
+        value = spec.low + steps * spec.step
+    if spec.kind == "int":
+        return float(int(round(value)))
+    return float(value)
+
+
+def run_smac(
+    config: OptimizerConfig,
+    out_dir: Path,
+    evaluate: Callable[[Path, dict[str, float]], dict[str, float]],
+    *,
+    resume: bool = False,
+) -> list[dict[str, Any]]:
+    if config.budget <= 0:
+        raise OptimizeError("budget must be positive")
+    if resume:
+        raise OptimizeError("resume is not supported with the smac engine yet")
+    out_dir = Path(out_dir)
+    trials_dir = out_dir / "trials"
+    trials_dir.mkdir(parents=True, exist_ok=True)
+    results_path = out_dir / "results.jsonl"
+    if results_path.exists():
+        results_path.unlink()
+    records: list[dict[str, Any]] = []
+    trial = 0
+    space = ConfigurationSpace(seed=config.seed)
+    for item in config.parameters:
+        if item.kind == "int":
+            space.add(Integer(item.name, (int(round(item.low)), int(round(item.high)))))
+        else:
+            space.add(Float(item.name, (item.low, item.high)))
+
+    def target(configuration: Configuration, seed: int = 0) -> float:
+        nonlocal trial
+        del seed
+        trial += 1
+        values = {
+            item.name: _snap(item, float(configuration[item.name])) for item in config.parameters
+        }
+        trial_path = trials_dir / f"{trial:04d}.set"
+        trial_path.write_text(render_trial_set(config, values), encoding="utf-8", newline="\n")
+        try:
+            metrics = evaluate(trial_path, values)
+            objective = float(metrics[config.objective])
+            error = None
+        except (KeyError, OSError, ValueError) as exc:
+            metrics = {}
+            objective = None
+            error = str(exc)
+        record = {
+            "trial": trial,
+            "engine": "smac",
+            "values": values,
+            "metrics": metrics,
+            "objective": objective,
+            "eligible": _eligible(config, metrics) if objective is not None else False,
+            "set": trial_path.relative_to(out_dir).as_posix(),
+            "error": error,
+        }
+        records.append(record)
+        with results_path.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        if objective is None:
+            return float("inf")
+        return -objective
+
+    scenario = Scenario(
+        space,
+        name="losslens",
+        output_directory=out_dir / "smac3_output",
+        deterministic=True,
+        objectives="cost",
+        n_trials=config.budget,
+        seed=config.seed,
+        n_workers=1,
+        use_default_config=False,
+    )
+    facade = HyperparameterOptimizationFacade(
+        scenario,
+        target,
+        overwrite=True,
+        logging_level=False,
+    )
+    facade.optimize()
     return records
 
 

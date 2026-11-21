@@ -230,6 +230,81 @@ def test_cli_plan_run_and_choose(tmp_path, capsys):
     assert (run_dir / "best.set").is_file()
 
 
+def test_smac_engine_runs_with_dry_metrics(tmp_path):
+    config = core.config_from_inputs(
+        parse_set(SET_TEXT),
+        expert="TestEA",
+        symbol="XAUUSD",
+        from_day=date(2026, 3, 3),
+        to_day=date(2026, 3, 3),
+        spread=30,
+        budget=5,
+        seed=1,
+        objective="net_profit",
+        engine="smac",
+    )
+
+    records = core.run_smac(
+        config,
+        tmp_path,
+        lambda _path, values: core.dry_metrics(config, values),
+    )
+
+    assert len(records) == 5
+    assert (tmp_path / "results.jsonl").is_file()
+    assert core.summary(records)["best_trial"] is not None
+
+
+def test_cli_smac_dry_run(tmp_path, capsys):
+    preset = tmp_path / "expert.set"
+    preset.write_text(SET_TEXT, encoding="utf-8")
+    run_dir = tmp_path / "run"
+    assert (
+        main(
+            [
+                "optimize",
+                "plan",
+                "--set",
+                str(preset),
+                "--expert",
+                "TestEA",
+                "--symbol",
+                "XAUUSD",
+                "--from",
+                "2026-03-03",
+                "--to",
+                "2026-03-03",
+                "--budget",
+                "4",
+                "--engine",
+                "smac",
+                "--out",
+                str(run_dir),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    code = main(
+        [
+            "optimize",
+            "run",
+            "--config",
+            str(run_dir / "config.json"),
+            "--out",
+            str(run_dir),
+            "--dry-run",
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["trials"] == 4
+    assert data["best_trial"] is not None
+
+
 def test_cli_run_without_evaluator_is_refused(tmp_path, capsys):
     preset = tmp_path / "expert.set"
     preset.write_text(SET_TEXT, encoding="utf-8")

@@ -32,6 +32,7 @@ APPROVED_IMPORTS = frozenset(
     datetime decimal enum functools hashlib io itertools json math os pathlib re shutil
     statistics struct sys tempfile time tomllib typing zoneinfo
     pyarrow pyarrow.compute pyarrow.csv pyarrow.parquet
+    smac ConfigSpace
     """.split()
 )
 SUBPROCESS_ALLOWED = {
@@ -234,7 +235,7 @@ def test_dependency_scanner_flags_bad_and_accepts_good():
     good = {
         "build-system": build,
         "project": {
-            "dependencies": ["pyarrow>=14.0"],
+            "dependencies": ["pyarrow>=14.0", "smac==2.4.1", "ConfigSpace==1.2.2"],
             "optional-dependencies": {"dev": ["pytest>=8", "ruff>=0.9", "mypy>=1.15"]},
         },
     }

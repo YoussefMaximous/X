@@ -10,12 +10,12 @@ need to learn SMAC or the optimizer's internals; you drive it and explain it.
   questions to ask the user.
 - `optimize run --dry-run` validates the loop without MT4.
 - `optimize status`, `shortlist`, `decide`, `winner` and `best` work on a run.
-- The real MT4 evaluator and SMAC are **not enabled yet**: the start file may
-  not carry `TestExpertParameters` and `smac` is not an approved dependency.
-  The Lead must allow both before a real trial can run. Until then, never claim
-  a real optimization ran.
-- `config.json` has an `engine` field. `random` is enabled. `smac` is reserved;
-  selecting it stops with "not enabled" until the dependency is approved.
+- `engine=random` and `engine=smac` both run. SMAC is installed and drives the
+  same trial loop; `--dry-run` validates it.
+- The **real MT4 evaluator** is still not enabled: the start file may not carry
+  `TestExpertParameters`. The Lead must allow that key before a real trial can
+  run. Until then, never claim a real optimization ran.
+- `config.json` has an `engine` field: `random` or `smac`.
 
 ## The conversation you must have
 
@@ -36,7 +36,8 @@ constraints, budget) before running.
 ```text
 python -m losslens mt4 inputs expert.set
 python -m losslens optimize plan --set expert.set --expert MyEA --symbol XAUUSD \
-    --from 2026-03-03 --to 2026-03-03 --budget 50 --out data/optimize/run1 --json
+    --from 2026-03-03 --to 2026-03-03 --budget 50 --engine smac \
+    --out data/optimize/run1 --json
 python -m losslens optimize run --config data/optimize/run1/config.json --dry-run --json
 python -m losslens optimize status --run data/optimize/run1 --json
 python -m losslens optimize shortlist --run data/optimize/run1 --limit 5 --json

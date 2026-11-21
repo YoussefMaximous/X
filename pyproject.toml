@@ -7,7 +7,7 @@ name = "losslens"
 version = "0.1.0"
 description = "Local tick store and defect lens for MT4 expert advisors"
 requires-python = ">=3.11"
-dependencies = ["pyarrow>=14.0"]
+dependencies = ["pyarrow>=14.0", "smac==2.4.1", "ConfigSpace==1.2.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.9.0", "mypy>=1.15.0"]
@@ -34,5 +34,11 @@ python_version = "3.11"
 [[tool.mypy.overrides]]
 # pyarrow ships incomplete type information; skip its internals, keep strict on our code.
 module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+# SMAC and ConfigSpace ship no type information for our uses.
+module = ["smac", "smac.*", "ConfigSpace", "ConfigSpace.*"]
 ignore_missing_imports = true
 follow_imports = "skip"

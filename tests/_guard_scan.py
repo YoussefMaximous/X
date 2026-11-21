@@ -70,6 +70,7 @@ TRADING_LIBRARIES = frozenset(
         "pyzmq",
     }
 )
+PROJECT_DEPENDENCIES = frozenset({"pyarrow", "smac", "configspace"})
 EA_FILE_MESSAGE = (
     "EA files do not belong in this folder. Keep them in MT4's own folder; "
     "loss-lens never needs a copy."
@@ -329,10 +330,10 @@ def check_pyproject_dependencies(data: dict[str, Any]) -> list[str]:
         return ["pyproject.toml: rule 2d: [project] must be a table"]
     dependencies = project.get("dependencies", [])
     names = dependency_names(dependencies if isinstance(dependencies, list) else [])
-    if names != {"pyarrow"}:
+    if names != PROJECT_DEPENDENCIES:
         problems.append(
             "pyproject.toml: rule 2d: project.dependencies must be exactly "
-            f"{{'pyarrow'}}, found {sorted(names)}"
+            f"{sorted(PROJECT_DEPENDENCIES)}, found {sorted(names)}"
         )
     optional = project.get("optional-dependencies", {})
     if not isinstance(optional, dict):

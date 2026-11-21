@@ -675,12 +675,6 @@ def cmd_optimize_run(args: argparse.Namespace) -> int:
         print(f"run failed: {exc}", file=sys.stderr)
         return 2
     out = Path(args.out) if args.out else Path(args.config).parent
-    if config.engine != "random":
-        print(
-            f"run failed: the {config.engine} engine is not enabled in this build",
-            file=sys.stderr,
-        )
-        return 2
     if not args.dry_run:
         print(
             "run failed: the MT4 evaluator is not enabled in this build; "
@@ -688,12 +682,26 @@ def cmd_optimize_run(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
-    records = optimize_core.run_trials(
-        config,
-        out,
-        lambda _path, values: optimize_core.dry_metrics(config, values),
-        resume=args.resume,
-    )
+    try:
+        if config.engine == "smac":
+            records = optimize_core.run_smac(
+                config,
+                out,
+                lambda _path, values: optimize_core.dry_metrics(config, values),
+            )
+        elif config.engine == "random":
+            records = optimize_core.run_trials(
+                config,
+                out,
+                lambda _path, values: optimize_core.dry_metrics(config, values),
+                resume=args.resume,
+            )
+        else:
+            print(f"run failed: unknown engine {config.engine!r}", file=sys.stderr)
+            return 2
+    except optimize_core.OptimizeError as exc:
+        print(f"run failed: {exc}", file=sys.stderr)
+        return 2
     data = optimize_core.summary(records)
     data["results"] = str(out / "results.jsonl")
     if args.as_json:
