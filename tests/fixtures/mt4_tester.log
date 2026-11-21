@@ -1,0 +1,8 @@
+0	00:59:31.832	Expert LossLensProbe XAUUSD,M1: loaded successfully
+0	00:59:31.835	Tester: start with configuration file
+0	00:59:34.780	TestGenerator: spread set to 30
+2	00:59:34.815	2026.03.03 00:00:00  LossLensProbe test started
+0	00:59:34.832	2026.03.03 03:40:00  LossLensProbe XAUUSD,M1: LossLensProbe init start
+0	00:59:34.835	2026.03.03 03:40:00  LossLensProbe XAUUSD,M1: LossLensProbe init ok
+0	00:59:34.913	XAUUSD,M1: 471348 tick events (1220 bars, 471448 bar states) processed in 0:00:00.094 (total time 0:00:02.891)
+0	00:59:35.477	Expert LossLensProbe XAUUSD,M1: removed

@@ -19,6 +19,7 @@ from .mt4 import compile as mt4_compile
 from .mt4 import copy as mt4_copy
 from .mt4 import export as mt4_export
 from .mt4 import fxt as mt4_fxt
+from .mt4 import journal as mt4_journal
 from .mt4 import report as mt4_report
 from .mt4 import run as mt4_run
 from .playground import PlaygroundError, build_playground
@@ -124,6 +125,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parse_report.add_argument("file")
     parse_report.set_defaults(func=cmd_mt4_parse_report)
+
+    parse_journal = mt4_commands.add_parser("parse-journal", help="read an MT4 tester journal")
+    parse_journal.add_argument("file")
+    parse_journal.add_argument("--tail", type=int, default=20)
+    parse_journal.set_defaults(func=cmd_mt4_parse_journal)
 
     run_cmd = mt4_commands.add_parser("run", help="run the probe in the tester")
     run_cmd.add_argument("--symbol", required=True)
@@ -563,6 +569,19 @@ def cmd_mt4_parse_report(args: argparse.Namespace) -> int:
             f"trade {trade.ticket}: {trade.kind} {trade.size} at {trade.close_price} "
             f"on {trade.close_time}, profit {trade.profit:.2f}, balance {trade.balance:.2f}"
         )
+    return 0
+
+
+def cmd_mt4_parse_journal(args: argparse.Namespace) -> int:
+    try:
+        lines = mt4_journal.parse_journal(Path(args.file))
+    except (mt4_journal.JournalError, OSError) as exc:
+        print(f"parse failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"lines: {len(lines)}")
+    tail = max(0, args.tail)
+    for line in lines[-tail:] if tail else ():
+        print(f"{line.level} {line.time} {line.message}")
     return 0
 
 
