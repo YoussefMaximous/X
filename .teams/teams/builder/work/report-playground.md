@@ -1,27 +1,28 @@
-# Report — local Playground (MT4-native, matches the app's template)
+# Report — Playground rebuild (MT4-native, tick bars, expert inspection)
 
-Updated: 2026-11-21 · Builder · Separate part; not an inc-2 change.
+Updated: 2026-11-21 · Builder · Separate part.
 
-**Summary.** Added `src/losslens/playground/` and `playground build`. It reads the window with
-`TickStore.read_ticks` (UTC epoch ms), stops above `--max-ticks`, and writes one self-contained
-HTML page with inline CSS/JS and the ticks embedded as JSON. The page is a black Canvas 2D chart
-with a lime bid line, red ask line, MT4 price/time axes, playback, freeze-time simulated tickets,
-price grid, prediction drawing, both ways, fixed-move preview, scenario tabs, localStorage and
-local JSON export/import. The visual system now uses the same tokens as the app template being
-built beside it: Tahoma 11px, `#f0f0f0` panels, `#e4e4e4` headers, `#a0a0a0` lines, `#2f6fb3`
-accent, black chart, `#00c000` up and `#ff4040` down. No server, network, new dependency, base64,
-external font/image/CDN, MT4 code change, or MetaQuotes asset.
+**Summary.** Rebuilt the Playground after the feedback that the first view was too zoomed out,
+had no period choice, did not make the ticks visible, and did not let the expert be loaded. The page
+now uses the app template's MT4 layout: menubar, toolbar, Market Watch, chart, Terminal and status
+bar. It has a period picker (Tick line, 1/10/100/500/1,000 ticks per bar, M1/M5/M15/M30/H1), candles
+built from the stored Dukascopy ticks, a five-minute warm-up, auto-follow, wheel zoom, drag pan,
+a Data Window, and a first-run Help tab. The Expert tab loads the project's `.set`/`.mq4` inputs and
+an MT4 Strategy Tester report, shows the report's closes on the chart, toggles the overlay, and
+lets each trade be unchecked from the what-if. The Playground never runs MT4; the run still comes
+from the existing runner. No server, network, new dependency, base64, external asset or MT4 change.
 
 ## Files
 
-- `src/losslens/playground/__init__.py`
-- `src/losslens/playground/build.py`
-- `src/losslens/playground/page.py`
-- `tests/test_playground.py`
-- CLI wiring in `src/losslens/cli.py` (`playground build`)
+- `src/losslens/playground/page_body.py` — MT4 layout, CSS and page markup
+- `src/losslens/playground/page_script.py` — chart, replay, tickets, prediction, scenarios, expert
+- `src/losslens/playground/page.py` — assembles the single HTML file
+- `src/losslens/playground/build.py` — ticks, period data, expert inputs/report, atomic write
+- `tests/test_playground.py` — page, cap, window and expert tests
+- `src/losslens/cli.py` — `--inputs` and `--report` on `playground build`
 - Generated and ignored: `data/playground/xauusd-2026-03-03-1400.html`
 
-## 1. Command
+## Command
 
 ```text
 python -m losslens playground build --symbol XAUUSD --day 2026-03-03 --from 14:00 --to 14:30 --out data/playground/xauusd-2026-03-03-1400.html
@@ -29,113 +30,114 @@ playground: data\playground\xauusd-2026-03-03-1400.html
 ticks: 16498
 first tick: 2026-03-03T14:00:00.003Z
 last tick: 2026-03-03T14:29:59.817Z
-bytes: 648724
-```
-
-`tests/test_playground.py` also checks the cap: a 6-tick window with `--max-ticks 2` exits 2 and
-prints `the window has 6 ticks, more than --max-ticks 2` plus `choose a shorter --from/--to window`.
-
-## 2. Page checks
-
-- Data: `<script id="tick-data" type="application/json">` parses to `tickCount = 16498`,
-  `len(ticks) = 16498`, first `[1772546400003, 5156.405, 5157.432]`,
-  last `[1772548199817, 5145.685, 5146.755]`.
-- Static: no `://`, no `fetch(`, no `<script src=`, no `WebSocket`.
-- Required text: `Next tick`, `Next 10`, `Next 100`, `Reset`, `Buy`, `Sell`, `Both ways`,
-  `Run to end`, `PAUSED`, `FUTURE HIDDEN`; grid control `id="grid-step"` with
-  `0.01 / 0.05 / 0.10 / 0.25 / 0.50 / 1.00 / custom`.
-- JavaScript: `node --check` on the extracted inline script exits 0.
-- `file://` in headless Chrome: loads, no JS error, and the acceptance harness produced:
-
-```text
-initial:            Tick 1 / 16498
-after Next 10 x2:   Tick 21 / 16498
-after Buy:          cursor still Tick 21 / 16498
-ticket:             14:00:01 buy 0.01 5157.12 - - -$1.10 Close
-equity:             $9,998.90
-prediction:         Points 3 · reached 0 · MAE - · direction -
-Both ways:          active
-tabs:               Scenario 1, Scenario 2
-grid after change:  0.25
-Run to end:         scoreboard visible
-score rows:         Scenario 2 | $10,000.00 | $0.00 | 0 | - | - | -
-                    Scenario 1 | $9,988.56 | $50.36 | 1 | - | 14.93 | 33.3%
-cursor after end:   Tick 16498 / 16498
-```
-
-- localStorage: reload of the same file restored `Tick 21 / 16498` and the ticket row.
-- Export/import: export captured a `losslens.playground` JSON with 1 tab, 1 ticket, cursor 20;
-  feeding it back through the file input produced `Scenario file imported.`
-- SL/TP: a stop on a revealed tick closes at the stop price; manual close uses current bid/ask and
-  leaves the cursor unchanged.
-
-## 3. Tools
-
-Verified on the committed tree `a096cc1` in a clean worktree, so the concurrent work-in-progress
-in the main tree does not affect this evidence.
-
-```text
-python -m pytest -q
-126 passed in 1.97s
-PYTEST_EXIT=0
-```
-
-One pytest atexit cleanup warning about `pytest-current` permissions is printed after the result;
-it is pytest's temporary-folder cleanup, not a test, and the exit code is 0.
-
-```text
-python -m ruff check .
-All checks passed!
-RUFF_CHECK_EXIT=0
-
-python -m ruff format --check .
-78 files already formatted
-RUFF_FORMAT_EXIT=0
-
-python -m mypy
-Success: no issues found in 26 source files
-MYPY_EXIT=0
-```
-
-The same clean worktree builds the page with the same result:
-
-```text
-python -m losslens playground build --symbol XAUUSD --day 2026-03-03 --from 14:00 --to 14:30 --out <temp>.html
-ticks: 16498
-first tick: 2026-03-03T14:00:00.003Z
-last tick: 2026-03-03T14:29:59.817Z
-bytes: 648724
+bytes: 683343
 BUILD_EXIT=0
 ```
 
-Focused: `python -m pytest -q tests/test_playground.py` → `3 passed`.
+The command also accepts `--inputs expert.set` (or `.mq4`) and `--report tester.htm`. It prints the
+expert input count and how many report trades close in the window.
 
-Current main tree note: a concurrent agent is mid-write on `src/losslens/optimize/` and its
-`cli.py`/test wiring. The repo-wide gates there currently fail on that work (an unapproved
-`random` import in `optimize/core.py`, lint/format issues in the optimize files, and one mypy
-error in `cli.py`), not on the Playground. That work is not part of this commit and has not been
-changed. The clean-worktree result above is the Playground's evidence; re-run the four tools after
-the concurrent work settles.
+## What changed after the feedback
 
-## MT4 look
+- **Zoomed out / empty first view:** the first five minutes are revealed at load, the x-axis fits the
+  revealed series plus a small future margin, and the view auto-follows the cursor. `Follow` brings
+  it back after a pan or zoom.
+- **Period picker:** Tick line, 1/10/100/500/1,000 ticks per bar, and M1/M5/M15/M30/H1. The default
+  is 100 ticks per bar; the Help explains how to switch to M1.
+- **Ticks are drawn:** tick bars are OHLC candles built from the real Dukascopy ticks; the Tick line
+  mode draws the raw bid line (and spread marks when zoomed in). The Data Window shows the current
+  bar's O/H/L/C, change, tick count, and how full a tick bar is (`44 / 100`).
+- **Cognitively clearer:** MT4 layout and tokens, first-run Help tab (not an overlay on the chart),
+  Data Window, replay bar with tick progress, status messages, no tooltip for future prices.
+- **Expert inspection:** the Expert tab uses the project's existing `.set`/`.mq4` reader and MT4
+  report reader/reconcile path. It shows the report's in-window closes, a chart toggle, a per-trade
+  `Use` checkbox, the window start balance, and a what-if final. Unchecking a trade removes its
+  P&L from the what-if and hides its marker; the raw ticks stay untouched. The scoreboard adds a
+  normalized `$10,000` expert row. The Playground does not execute the EA.
 
-The user asked the Playground to feel native to MT4 and to match the rest of the software. The
-chart is the MT4 default: black, lime bid, red ask, gray grid, right price scale, bottom time
-scale, filled bid/ask price tags, and a blue `NOW` marker. The chrome is the app template's MT4
-language: Tahoma, light panels, beveled buttons, white terminal table and inputs, blue active
-buttons, and a light status bar. The Playground's own tools (scenario tabs, prediction, both ways,
-scoreboard) are styled in the same language. No MetaQuotes code, name, logo, icon or font file is
-used; Tahoma is a Windows system font.
+## Evidence
+
+Page data: `tickCount = 16498`, `len(ticks) = 16498`, first
+`[1772546400003, 5156.405, 5157.432]`, last `[1772548199817, 5145.685, 5146.755]`.
+Static checks: no `://`, no `fetch(`, no `<script src=`, no `WebSocket`; required labels and the
+period/grid controls are present. `node --check` on the inline script exits 0.
+
+Final acceptance harness (headless Chrome, `file://`):
+
+```text
+initial: Help tab active, Tick 3,244 / 16,498, 100 ticks / bar, 44 / 100
++20 ticks: Tick 3,264 / 16,498, 64 / 100
+switch to M1: 1 minute, 14:05 UTC, 20 ticks in the bar
+Buy: 14:05:01 buy 0.01 5159.87, cursor still Tick 3,264, equity $9,998.80
+2 prediction points; Both ways active
+Scenarios: Scenario 1, Scenario 2
+Grid: 0.25
+Run to end: scoreboard visible
+Scenario 2 | $10,000.00 | $0.00 | 0 | — | — | —
+Scenario 1 | $9,985.81 | $50.36 | 1 | — | 3.46 | 50.0%
+end: Tick 16,498 / 16,498
+```
+
+Period harness: all eleven periods switch and report the right Data Window values, including
+Tick line (3,244 ticks), 1 tick/bar (3,244 bars), 10 ticks/bar (325 bars), 100 ticks/bar (33 bars),
+M1 (5 bars), and the larger time bars (1 bar while only the first five minutes are revealed).
+
+Expert harness (synthetic `expert.set` and tester report, same stored ticks):
+
+```text
+Expert: TestExpert · expert.set · report.htm
+Report: 1 trade · net $1.00; window: 1 close · 1 placed; window start $10,000.00
+Trade: 1 · 14:00:23 UTC · buy · 0.01 · 5156.40 · $1.00 · $10,001.00
+What-if: 1 included · $1.00 · final $10,001.00
+Uncheck the trade: 0 included · $0.00 · final $10,000.00
+Re-check: 1 included · $1.00 · final $10,001.00
+Overlay toggle: off
+Scoreboard: Expert report (window, $10k) | $10,001.00 | — | 1 | 100.0% | — | —
+```
+
+## Tools
+
+Verified in the shared working tree after the concurrent optimizer work settled:
+
+```text
+python -m pytest -q
+142 passed in 5.26s
+PYTEST_EXIT=0
+
+python -m ruff check .
+All checks passed!
+RUFF=0
+
+python -m ruff format --check .
+85 files already formatted
+FMT=0
+
+python -m mypy
+Success: no issues found in 30 source files
+MYPY=0
+
+python -m pytest -q tests/test_playground.py
+4 passed
+```
+
+The pytest atexit warning about `pytest-current` permissions is pytest's temporary-folder cleanup;
+the exit code is 0.
+
+## Research and rationale
+
+The rebuild follows MT4's visual-mode habits (step, chart through time, tester-style controls) and
+TradingView/MotiveWave replay habits (a replay bar, step-forward, auto-follow, zoom/pan, a clear
+cursor). Tick charts are useful for activity and spread detail but noisy alone, so the default is
+100 ticks per bar and time bars are one click away. The first view shows the first five minutes so
+the chart has shape; the Help tab opens first so the controls are explained without covering the
+chart. The app template's exact tokens (Tahoma, `#f0f0f0`, `#e4e4e4`, `#2f6fb3`, black chart,
+`#00c000`/`#ff4040`) keep the Playground in the same product.
 
 ## Not verified / open
 
-- A side-by-side pixel check against the installed MT4 was not made; the skin follows the app
-  template's tokens and MT4's documented default layout. The user's manual acceptance is the final
-  visual check.
-- The user's own browser download/upload dialogs were not exercised; export/import was verified
-  in-process with Blob/FileReader in headless Chrome.
+- The user's own browser and their real expert report; the Expert path was tested with a synthetic
+  report whose close matches a stored tick. The Playground does not run MT4; the runner produces
+  the report.
+- A side-by-side pixel check against the installed MT4; the layout follows the app template and
+  MT4's documented visual mode.
 - `data/` is ignored; nothing generated is committed.
-- Concurrent MT4 report/journal/reconciliation and app work landed in the same repository during
-  this session. It is not part of this report and was not changed, except a whitespace-only
-  `ruff format` on one unformatted line in the concurrent `cli.py` so the repo-wide format gate is
-  green.

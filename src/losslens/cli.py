@@ -266,6 +266,8 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--to", dest="end", type=_hhmm_arg, default=60)
     build.add_argument("--out", required=True)
     build.add_argument("--max-ticks", type=int, default=50_000)
+    build.add_argument("--inputs", help="the expert's .set or .mq4 input file")
+    build.add_argument("--report", help="an MT4 Strategy Tester report (.htm) for the expert")
     build.set_defaults(func=cmd_playground_build)
 
     return parser
@@ -516,6 +518,8 @@ def cmd_playground_build(args: argparse.Namespace) -> int:
             args.end,
             Path(args.out),
             args.max_ticks,
+            Path(args.inputs) if args.inputs else None,
+            Path(args.report) if args.report else None,
         )
     except PlaygroundError as exc:
         print(f"playground: {exc}", file=sys.stderr)
@@ -528,6 +532,13 @@ def cmd_playground_build(args: argparse.Namespace) -> int:
     print(f"first tick: {iso_utc(result.first_ts_ms)}")
     print(f"last tick: {iso_utc(result.last_ts_ms)}")
     print(f"bytes: {result.bytes_written}")
+    if result.expert_inputs:
+        print(f"expert inputs: {result.expert_inputs}")
+    if result.expert_report_trades:
+        print(
+            f"expert report: {result.expert_report_trades} trades, "
+            f"{result.expert_window_trades} close in this window"
+        )
     return 0
 
 

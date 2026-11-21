@@ -21,6 +21,30 @@ SCRIPT = re.compile(
     r'<script id="tick-data" type="application/json">(.*?)</script>',
     re.DOTALL,
 )
+EXPERT_REPORT_HTML = """<html><head><title>Strategy Tester: TestExpert</title>
+<meta name="version" content="1492">
+<meta name="server" content="ICMarketsSC-Demo04">
+</head><body>
+<table>
+<tr><td>Symbol</td><td>XAUUSD</td></tr>
+<tr><td>Period</td><td>M1</td></tr>
+<tr><td>Model</td><td>Every tick</td></tr>
+<tr><td>Bars in test</td><td>1</td></tr>
+<tr><td>Ticks modelled</td><td>6</td></tr>
+<tr><td>Modelling quality</td><td>99.00%</td></tr>
+<tr><td>Initial deposit</td><td>10000.00</td></tr>
+<tr><td>Spread</td><td>30</td></tr>
+<tr><td>Total net profit</td><td>1.00</td></tr>
+<tr><td>Total trades</td><td>1</td></tr>
+</table>
+<table>
+<tr><td>#</td><td>Time</td><td>Type</td><td>Order</td><td>Size</td><td>Price</td>
+<td>S / L</td><td>T / P</td><td>Profit</td><td>Balance</td></tr>
+<tr><td>1</td><td>2026.03.03 16:00</td><td>buy</td><td>1</td><td>0.01</td>
+<td>2650.25</td><td></td><td></td><td>1.00</td><td>10001.00</td></tr>
+</table>
+</body></html>
+"""
 
 
 @pytest.fixture
@@ -96,13 +120,17 @@ def test_build_writes_one_self_contained_page(tick_store, tmp_path):
         "Both ways",
         "Run to end",
         "PAUSED",
-        "FUTURE HIDDEN",
+        "FUTURE",
+        "Expert",
     ):
         assert label in html
     assert 'id="grid-step"' in html
-    assert 'id="grid-custom"' in html
+    assert 'id="period-select"' in html
+    assert 'data-tab="expert"' in html
     for step in ("0.01", "0.05", "0.10", "0.25", "0.50", "1.00", "custom"):
         assert f'value="{step}"' in html
+    for period in ("tick", "t1", "t10", "t100", "t500", "t1000", "m1", "m5", "m15", "m30", "h1"):
+        assert f'value="{period}"' in html
 
     for name in (
         "Order" + "Send(",
@@ -112,6 +140,54 @@ def test_build_writes_one_self_contained_page(tick_store, tmp_path):
         "Order" + "Delete(",
     ):
         assert name not in html
+
+
+def test_build_loads_expert_inputs_and_report(tick_store, tmp_path):
+    inputs = tmp_path / "expert.set"
+    inputs.write_text(
+        "RiskPercent=1.0\nRiskPercent,1=0.5\nRiskPercent,2=0.1\nRiskPercent,3=2.0\n",
+        encoding="utf-8",
+    )
+    report = tmp_path / "tester.htm"
+    report.write_text(EXPERT_REPORT_HTML, encoding="utf-8")
+
+    code, out = build(
+        tmp_path,
+        "--inputs",
+        str(inputs),
+        "--report",
+        str(report),
+    )
+
+    assert code == 0
+    html = out.read_text(encoding="utf-8")
+    match = SCRIPT.search(html)
+    assert match is not None
+    expert = json.loads(match.group(1))["expert"]
+    assert expert["name"] == "TestExpert"
+    assert expert["inputs"] == [
+        {
+            "name": "RiskPercent",
+            "value": "1.0",
+            "start": "0.5",
+            "step": "0.1",
+            "stop": "2.0",
+        }
+    ]
+    report_data = expert["report"]
+    assert report_data["totalTrades"] == 1
+    assert report_data["windowTradeCount"] == 1
+    assert report_data["foundWindowTrades"] == 1
+    assert report_data["windowStartBalance"] == 10000.0
+    trade = report_data["trades"][0]
+    assert trade["ticket"] == 1
+    assert trade["found"] is True
+    assert trade["inWindow"] is True
+    assert trade["closeTsMs"] == TICKS[1][0]
+    assert "RiskPercent" in html
+    assert "TestExpert" in html
+    assert "Download .set" in html
+    assert "Use" in html
 
 
 def test_build_stops_with_a_clear_message_when_over_the_cap(tick_store, tmp_path, capsys):
