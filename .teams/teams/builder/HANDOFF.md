@@ -42,4 +42,4 @@ Expected: 88 tests pass; tools exit 0; export reports 554,076 records and a 31,0
 
 ## Next step
 
-The Lead ran the corrected file. MT4 still rebuilt it. Do not start part C. Wait for the next brief.
+Do "Send-back 5 of part B" in `.teams/increments/inc-2.md`. Stop the tick file at broker midnight. Do not start either MT4. Tell the user "Report inc-2b6 is ready".

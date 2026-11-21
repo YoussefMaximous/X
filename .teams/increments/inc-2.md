@@ -610,3 +610,15 @@ Those two fields are the test range at 00:00 UTC: byte 472 is 00:00 UTC on `--fr
 **builder: the two date fields are accepted.** The exported file has 472 = 1772496000 and 476 = 1772582400, 554,076 records, 31,028,984 bytes. The four tools were not all re-run by the Lead; the FXT test file passed (4 tests).
 
 The Lead ran that file on the logged-in terminal. MT4 still replaced it. The file went back to 26,401,816 bytes, the probe got 18,853,920 bytes (471,348 ticks), and the log says "spread set to 30" with no read-only complaint. After the run, bytes 472 and 476 were still the right dates. Bytes 216, 220 and 224 had been changed back to 1320, 1772509200 and 1772582340. So the date fields were not why MT4 rebuilds the file. Part C is not briefed until this is understood. The files placed in the user's MT4 for the run were removed.
+
+## Send-back 5 of part B: stop at broker midnight
+
+Do not start either MT4. Do not open `accounts.ini`. Do not change bytes 472 or 476.
+
+Our file for 2026-03-03 has 1,380 minute bars, from 1772503200 to 1772589540. MT4 keeps 1,320 of them, from 1772503200 to 1772582340, and deletes the rest. 1772582400 is 00:00 on the broker clock on the day after `--to`. The 60 bars after that are still 3 March in UTC, and they are already 4 March for the broker. MT4 will not use a tick file that crosses that line: it deletes the whole file and writes its own.
+
+`mt4 export` must not write a tick whose server time is on or after 00:00 broker time of the day after `--to`. Use the same server-time rule the `.hst` writer already uses. For 2026-03-03 that cutoff is 1772582400. After the cut, bytes 216, 220 and 224 must be the remaining bar count, the first remaining bar and the last remaining bar. A test with the five-tick case still passes, and a new test shows that a tick at or after the cutoff is absent while a tick one second earlier is present.
+
+**Done when:** the four tools exit 0, and a fresh `mt4 export` of 2026-03-03 has 1,320 bars, first bar 1772503200, last bar 1772582340, bytes 472 and 476 unchanged, and no record with a bar time at or after 1772582400.
+
+**Return:** `.teams/teams/builder/work/report-inc-2b6.md` and an updated `HANDOFF.md`. Then tell the user: "Report inc-2b6 is ready".
