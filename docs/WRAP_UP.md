@@ -96,3 +96,26 @@ Read `docs/OPUS_BUILD_BRIEF.md` first. It contains the full app, trade import,
 chart markers, losses screen, Data tab, optimization lab, performance budgets
 and safety rules. Do not add a browser, a web server or a localhost page. Do not
 weaken the safety guards. Keep everything local.
+
+## The open question for Opus
+
+**How do we make X the best environment in the world for testing, optimizing and
+improving the Expert?**
+
+Leave this open. Do not assume the answer. Explore it with the expert and measure
+it.
+
+Starting points, not answers:
+
+- What must he see to trust a run: real fills, spread at entry/exit, the tick
+  path, the proof, the difference from MT4?
+- What does “better” mean for him: money, robustness across periods, fewer big
+  losses, fewer rule breaks, faster decisions?
+- How should optimization choose a winner: top score, stability across
+  neighbouring parameters, out-of-sample, drawdown, trade count, simplicity?
+- How do we shorten the loop from a new idea to a validated improvement?
+- Which parts belong in the app, which in a batch run, and what should be one
+  click?
+- What can we remove so the environment stays fast and clear?
+- What would make him stop using the live demo as his first test?
+

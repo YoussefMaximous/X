@@ -215,3 +215,6 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
    before switching to real spreads.
 4. **Tkinter or PySide6** for the fuller X UI.
 5. **Trade import format** and the run/trade store schema.
+6. **The big one:** how to make X the best environment for testing, optimizing
+   and improving the Expert. Leave this open; explore it with the expert and
+   measure it.
