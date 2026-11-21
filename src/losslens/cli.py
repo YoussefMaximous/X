@@ -176,6 +176,12 @@ def build_parser() -> argparse.ArgumentParser:
     winner.add_argument("--json", action="store_true", dest="as_json")
     winner.set_defaults(func=cmd_optimize_winner)
 
+    desktop = commands.add_parser("desktop", help="open the X desktop app")
+    desktop.add_argument("--symbol", default="XAUUSD")
+    desktop.add_argument("--day", type=_date_arg)
+    desktop.add_argument("--inputs", help="an expert .set file")
+    desktop.set_defaults(func=cmd_desktop)
+
     status = tick_commands.add_parser("status", help="show what the store covers")
     status.add_argument("--symbol", required=True)
     status.set_defaults(func=cmd_ticks_status)
@@ -852,6 +858,22 @@ def cmd_optimize_best(args: argparse.Namespace) -> int:
         print(f"trial: {best['trial']}")
         print(f"objective: {best['objective']}")
         print(f"values: {best['values']}")
+    return 0
+
+
+def cmd_desktop(args: argparse.Namespace) -> int:
+    from tkinter import TclError
+
+    from .desktop.app import run_desktop
+    from .desktop.chart import ChartError, latest_day
+
+    symbol = args.symbol.upper()
+    try:
+        day = args.day or latest_day(symbol)
+        run_desktop(symbol, day, Path(args.inputs) if args.inputs else None)
+    except (ChartError, mt4_presets.PresetError, OSError, TclError) as exc:
+        print(f"desktop failed: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 

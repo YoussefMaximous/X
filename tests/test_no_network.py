@@ -33,6 +33,7 @@ APPROVED_IMPORTS = frozenset(
     statistics struct sys tempfile time tomllib typing zoneinfo
     pyarrow pyarrow.compute pyarrow.csv pyarrow.parquet
     smac ConfigSpace
+    tkinter tkinter.ttk tkinter.filedialog tkinter.messagebox tkinter.TclError
     """.split()
 )
 SUBPROCESS_ALLOWED = {

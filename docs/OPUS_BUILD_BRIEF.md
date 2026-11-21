@@ -1,15 +1,17 @@
-# Build brief for Opus — the loss-lens app after the MT4 spike
+# Build brief for Opus — X, the desktop app
 
 Read first: `AGENTS.md`, `.teams/PROJECT.md`, `.teams/ARCHITECTURE.md`,
 `.teams/QUALITY.md`, `.teams/LOSSES.md`, `docs/OPTIMIZE.md`.
 
 ## Scope change
 
-**MT4 execution and the EA run are out of scope for this build.** The app is
-independent of MT4: it reads the local tick store and imported trade files. Keep
-the existing MT4 modules (`src/losslens/mt4/`) as legacy tools, but do not build
-the app on them, do not launch MT4, and do not require `.fxt`/`.hst` for any app
-feature.
+**The product is a native desktop app named X, not a browser application.**
+There is no web server and no `127.0.0.1` page to open. One Windows window holds
+the menus, toolbars, Market Watch, chart, Terminal tabs and status bar. The app
+reads the local tick store and imported trade files. MT4 execution and the EA run
+are out of scope. Keep the existing MT4 modules (`src/losslens/mt4/`) as legacy
+import/verification tools, but do not build the app on them, do not launch MT4,
+and do not require `.fxt`/`.hst` for any app feature.
 
 The user's words: “we are independent of it; remove these 2.” The two removed
 items are (1) the EA run and (2) MT4.
@@ -20,10 +22,13 @@ items are (1) the EA run and (2) MT4.
   (UTC epoch ms, int64), `bid`, `ask` (float64, 3 decimals for XAUUSD),
   `bid_vol`, `ask_vol`. `TickStore.read_ticks(from_ms, to_ms)` is the one read
   function. `python -m losslens ticks status|verify|query|import|sync`.
-- Chart page: `python -m losslens app build --symbol XAUUSD --day YYYY-MM-DD
-  [--inputs expert.set]` writes a self-contained MT4-style HTML page with 3
-  decimals, real ask line/spread, timeframes, pan/zoom, Market Watch, Terminal
-  tabs and an Expert Inputs editor that saves a `.set`.
+- HTML chart prototype: `python -m losslens app build --symbol XAUUSD --day
+  YYYY-MM-DD [--inputs expert.set]` writes a self-contained page. Keep it as a
+  reference for the visuals; it is not the product.
+- Desktop shell: `x desktop --symbol XAUUSD --day YYYY-MM-DD [--inputs
+  expert.set]` opens a native Tkinter window named **X** with the MT4 layout,
+  3-decimal bid/ask, timeframes, pan/zoom, Market Watch, Terminal, status and an
+  Expert Inputs editor. This is the base Opus extends.
 - AI-native optimizer: `python -m losslens optimize plan|run|status|shortlist|
   decide|winner|best`, engines `random` and `smac`, JSON outputs, a chosen
   “winner” that need not be the top score, `docs/OPTIMIZE.md` is the AI protocol.
@@ -34,9 +39,9 @@ items are (1) the EA run and (2) MT4.
 
 ### 1. The app shell — native to an MT4 user
 
-- FastAPI backend on `127.0.0.1` only, React/TypeScript frontend, bundled
-  assets, no internet on load. (The Lead must add the approved dependencies and
-  server bind to the safety guard; do not weaken the guard yourself.)
+- Native Windows desktop app in Python. The current `x desktop` shell uses
+  Tkinter (stdlib, no browser, no server). Opus may move to PySide6 for a richer
+  look, but there must be **no web server and no browser window**.
 - Window layout: menu bar and toolbars on top, Market Watch and Navigator on the
   left, chart in the middle, Terminal-style tabs at the bottom, status bar.
 - MT4 habits, not a reskin: right-click menus, F-keys, drag/drop, double-click,
@@ -44,6 +49,7 @@ items are (1) the EA run and (2) MT4.
 - Use our own code, icons, text and colours. Never copy MetaQuotes code, name,
   logo, icons or assets.
 - 60 fps chart, instant panel switches, no layout jank, no spinner on local data.
+- One process, one window; no localhost server, no bundled webview, no tab.
 
 ### 2. Runs and trades — the data the app needs without MT4
 
@@ -124,8 +130,9 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 
 ### 8. Packaging
 
-- One setup step on Windows; no admin if possible; the app runs from the repo or
-  a packaged build; local data stays under `data/`.
+- One setup step on Windows; no admin if possible. Ship a shortcut or a
+  PyInstaller build named **X** that opens the window without a console; local
+  data stays under `data/`.
 - Never commit `data/`, tick files, `.set` files, EA files or account data.
 
 ## Safety rules that stay
@@ -133,7 +140,7 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 - No live trading, ever. Nothing places, changes or closes an order on any
   account.
 - Nothing leaves the PC. The only online action is the Dukascopy download when
-  the user asks. The app listens on `127.0.0.1` only.
+  the user asks. X is one desktop process; no server listens at all.
 - Never copy, upload or commit an EA file; do not open an EA source unless the
   user asks.
 - No MetaQuotes assets, name, logo or code. Our look is our own implementation.
@@ -142,7 +149,7 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 
 ## Acceptance for the first app increment
 
-1. App starts on `127.0.0.1`, no network requests on load.
+1. X opens as a native Windows window; no browser, no server, no network on load.
 2. Imports a run CSV and shows its trades on the chart with entry/exit markers.
 3. Clicking a loss opens the chart at its entry and replays the ticks.
 4. Results list sorts by loss size and shows total money per reason.
@@ -161,7 +168,8 @@ Trade: id, run_id, ticket, side (buy/sell), lots,
 
 ## Decisions for the Lead
 
-- Approve the app dependencies and the `127.0.0.1` server bind in the guard.
+- Approve PySide6 if Opus chooses it over Tkinter. Tkinter needs no new
+  dependency. There is no server bind to approve.
 - Confirm the trade import format the expert can provide (CSV, MT4 report, or
   both).
 - Confirm the neutral label for the Results/losses screen.
