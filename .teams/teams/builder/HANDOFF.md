@@ -1,5 +1,7 @@
 # Builder handoff — local Playground (MT4-native)
 
+> The concurrent main software state is in `work/handoff-main.md`; this handoff covers the Playground.
+
 Updated: 2026-11-21 · Part: Playground (separate from inc-2) · Report:
 `work/report-playground.md`
 
