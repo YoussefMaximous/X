@@ -132,6 +132,13 @@ def build_parser() -> argparse.ArgumentParser:
     opt_run.add_argument("--out")
     opt_run.add_argument("--dry-run", action="store_true")
     opt_run.add_argument("--resume", action="store_true")
+    opt_run.add_argument("--timeout", type=float, default=600)
+    opt_run.add_argument(
+        "--visual",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="show MT4's visual tester chart; much slower (default: off)",
+    )
     opt_run.add_argument("--json", action="store_true", dest="as_json")
     opt_run.set_defaults(func=cmd_optimize_run)
 
@@ -224,6 +231,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_cmd.add_argument("--to", dest="end", required=True, type=_date_arg)
     run_cmd.add_argument("--spread", type=int, default=30)
     run_cmd.add_argument("--timeout", type=float, default=600)
+    run_cmd.add_argument("--parameters", help="a .set file to pass to the tester")
     run_cmd.add_argument(
         "--visual",
         action=argparse.BooleanOptionalAction,
@@ -668,6 +676,40 @@ def cmd_optimize_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _tester_evaluator(
+    config: optimize_core.OptimizerConfig,
+    copy_root: Path,
+    timeout: float,
+    visual: bool,
+) -> Callable[[Path, dict[str, float]], dict[str, float]]:
+    trial_set = copy_root / "tester" / "losslens_trial.set"
+
+    def evaluate(set_path: Path, _values: dict[str, float]) -> dict[str, float]:
+        trial_set.parent.mkdir(parents=True, exist_ok=True)
+        trial_set.write_bytes(set_path.read_bytes())
+        result = mt4_run.run_tester(
+            copy_root,
+            config.symbol,
+            config.from_day,
+            config.to_day,
+            config.spread,
+            timeout,
+            visual=visual,
+            parameters=trial_set.name,
+        )
+        if result.report is None:
+            raise ValueError("the tester produced no report")
+        report = result.report
+        return {
+            "net_profit": report.total_net_profit,
+            "trades": float(report.total_trades),
+            "max_drawdown": report.max_drawdown,
+            "profit_factor": report.profit_factor or 0.0,
+        }
+
+    return evaluate
+
+
 def cmd_optimize_run(args: argparse.Namespace) -> int:
     try:
         config = _load_optimizer_config(args.config)
@@ -675,25 +717,23 @@ def cmd_optimize_run(args: argparse.Namespace) -> int:
         print(f"run failed: {exc}", file=sys.stderr)
         return 2
     out = Path(args.out) if args.out else Path(args.config).parent
-    if not args.dry_run:
-        print(
-            "run failed: the MT4 evaluator is not enabled in this build; "
-            "use --dry-run until the Lead allows TestExpertParameters",
-            file=sys.stderr,
-        )
-        return 2
+
+    def _dry_evaluate(_path: Path, values: dict[str, float]) -> dict[str, float]:
+        return optimize_core.dry_metrics(config, values)
+
+    evaluate: Callable[[Path, dict[str, float]], dict[str, float]]
+    if args.dry_run:
+        evaluate = _dry_evaluate
+    else:
+        evaluate = _tester_evaluator(config, _copy_root(), args.timeout, args.visual)
     try:
         if config.engine == "smac":
-            records = optimize_core.run_smac(
-                config,
-                out,
-                lambda _path, values: optimize_core.dry_metrics(config, values),
-            )
+            records = optimize_core.run_smac(config, out, evaluate)
         elif config.engine == "random":
             records = optimize_core.run_trials(
                 config,
                 out,
-                lambda _path, values: optimize_core.dry_metrics(config, values),
+                evaluate,
                 resume=args.resume,
             )
         else:
@@ -938,15 +978,24 @@ def cmd_mt4_reconcile(args: argparse.Namespace) -> int:
 
 def cmd_mt4_run(args: argparse.Namespace) -> int:
     symbol = args.symbol.upper()
+    copy_root = _copy_root()
+    parameters: str | None = None
+    if args.parameters:
+        source = Path(args.parameters)
+        target = copy_root / "tester" / "losslens_run.set"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+        parameters = target.name
     try:
         result = mt4_run.run_tester(
-            _copy_root(),
+            copy_root,
             symbol,
             args.start,
             args.end,
             args.spread,
             args.timeout,
             visual=args.visual,
+            parameters=parameters,
         )
     except (mt4_run.RunError, OSError) as exc:
         print(f"run failed: {exc}", file=sys.stderr)

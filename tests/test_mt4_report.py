@@ -24,7 +24,26 @@ def test_parse_probe_report():
     assert report.spread == 30
     assert report.total_net_profit == 0.0
     assert report.total_trades == 0
+    assert report.profit_factor is None
+    assert report.max_drawdown == 0.0
     assert report.trades == ()
+
+
+def test_parse_profit_factor_and_drawdown():
+    text = FIXTURE.read_text(encoding="utf-8")
+    text = text.replace(
+        "<td>Profit factor</td><td align=right></td>",
+        "<td>Profit factor</td><td align=right>1.35</td>",
+    )
+    text = text.replace(
+        "<td>Maximal drawdown</td><td align=right>0.00 (0.00%)</td>",
+        "<td>Maximal drawdown</td><td align=right>123.45 (4.20%)</td>",
+    )
+
+    report = parse_report_text(text)
+
+    assert report.profit_factor == 1.35
+    assert report.max_drawdown == 123.45
 
 
 def _report_with_trades() -> str:

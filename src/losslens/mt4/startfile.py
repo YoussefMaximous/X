@@ -7,6 +7,7 @@ from datetime import date
 TESTER_KEYS = frozenset(
     {
         "TestExpert",
+        "TestExpertParameters",
         "TestSymbol",
         "TestPeriod",
         "TestModel",
@@ -43,25 +44,32 @@ def build_start_file(
     spread: int,
     expert: str = "LossLensProbe",
     visual: bool = False,
+    parameters: str | None = None,
 ) -> str:
     lines = [
         "[Common]",
         *TESTER_FIXED_LINES,
         "[Tester]",
         f"TestExpert={expert}",
-        f"TestSymbol={symbol}",
-        "TestPeriod=M1",
-        "TestModel=0",
-        f"TestSpread={spread}",
-        "TestOptimization=false",
-        "TestDateEnable=true",
-        f"TestFromDate={from_day:%Y.%m.%d}",
-        f"TestToDate={to_day_exclusive:%Y.%m.%d}",
-        r"TestReport=tester\losslens_report",
-        "TestReplaceReport=true",
-        "TestShutdownTerminal=true",
-        f"TestVisualEnable={'true' if visual else 'false'}",
     ]
+    if parameters is not None:
+        lines.append(f"TestExpertParameters={parameters}")
+    lines.extend(
+        [
+            f"TestSymbol={symbol}",
+            "TestPeriod=M1",
+            "TestModel=0",
+            f"TestSpread={spread}",
+            "TestOptimization=false",
+            "TestDateEnable=true",
+            f"TestFromDate={from_day:%Y.%m.%d}",
+            f"TestToDate={to_day_exclusive:%Y.%m.%d}",
+            r"TestReport=tester\losslens_report",
+            "TestReplaceReport=true",
+            "TestShutdownTerminal=true",
+            f"TestVisualEnable={'true' if visual else 'false'}",
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 

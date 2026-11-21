@@ -12,6 +12,12 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _TITLE_RE = re.compile(r"<title>\s*Strategy Tester:\s*(.*?)</title>", re.IGNORECASE | re.DOTALL)
 _VERSION_RE = re.compile(r'<meta\s+name="version"\s+content="([^"]*)"', re.IGNORECASE)
 _SERVER_RE = re.compile(r'<meta\s+name="server"\s+content="([^"]*)"', re.IGNORECASE)
+_PROFIT_FACTOR_RE = re.compile(
+    r"<td>\s*Profit factor\s*</td>\s*<td[^>]*>(.*?)</td>", re.IGNORECASE | re.DOTALL
+)
+_DRAWDOWN_RE = re.compile(
+    r"<td>\s*Maximal drawdown\s*</td>\s*<td[^>]*>(.*?)</td>", re.IGNORECASE | re.DOTALL
+)
 _TRADE_HEADER = (
     "#",
     "Time",
@@ -72,6 +78,8 @@ class TesterReport:
     total_net_profit: float
     total_trades: int
     trades: tuple[TesterTrade, ...]
+    profit_factor: float | None = None
+    max_drawdown: float = 0.0
 
 
 def _text(fragment: str) -> str:
@@ -116,6 +124,13 @@ def _optional_price(value: str) -> float | None:
     return None if not value else _number(value)
 
 
+def _optional_number(value: str | None) -> float | None:
+    if value is None:
+        return None
+    cleaned = _text(value)
+    return _number(cleaned) if cleaned else None
+
+
 def _trades(rows: list[list[str]]) -> tuple[TesterTrade, ...]:
     start: int | None = None
     for index, cells in enumerate(rows):
@@ -158,6 +173,12 @@ def parse_report_text(text: str) -> TesterReport:
         raise ReportError("missing report fields: " + ", ".join(missing))
     version = _VERSION_RE.search(text)
     server = _SERVER_RE.search(text)
+    profit_match = _PROFIT_FACTOR_RE.search(text)
+    drawdown_match = _DRAWDOWN_RE.search(text)
+    profit_factor = _optional_number(profit_match.group(1)) if profit_match else None
+    max_drawdown = 0.0
+    if drawdown_match is not None:
+        max_drawdown = _number(_text(drawdown_match.group(1)).split("(")[0].strip())
     return TesterReport(
         expert=_text(title.group(1)),
         server=_text(server.group(1)) if server is not None else "",
@@ -173,6 +194,8 @@ def parse_report_text(text: str) -> TesterReport:
         total_net_profit=_number(summary["Total net profit"]),
         total_trades=_integer(summary["Total trades"]),
         trades=_trades(rows),
+        profit_factor=profit_factor,
+        max_drawdown=max_drawdown,
     )
 
 

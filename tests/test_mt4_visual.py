@@ -41,6 +41,19 @@ def test_visual_can_be_turned_on_and_off():
     assert startfile.check_start_file(text) == []
 
 
+def test_start_file_parameters_are_passed():
+    text = startfile.build_start_file(
+        "XAUUSD",
+        date(2026, 3, 3),
+        date(2026, 3, 4),
+        30,
+        parameters="losslens_trial.set",
+    )
+
+    assert "TestExpertParameters=losslens_trial.set" in text
+    assert startfile.check_start_file(text) == []
+
+
 def test_run_tester_writes_the_visual_setting(tmp_path, monkeypatch):
     copy_root = tmp_path / "copy"
     (copy_root / "MQL4" / "Experts").mkdir(parents=True)
@@ -61,10 +74,12 @@ def test_run_tester_writes_the_visual_setting(tmp_path, monkeypatch):
         30,
         2,
         visual=True,
+        parameters="trial.set",
     )
 
     text = (copy_root / "losslens_start.ini").read_text(encoding="utf-8")
     assert "TestVisualEnable=true" in text
+    assert "TestExpertParameters=trial.set" in text
     assert calls
     assert result.timed_out is False
     assert result.report is None

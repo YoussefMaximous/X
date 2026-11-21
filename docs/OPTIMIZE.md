@@ -12,9 +12,9 @@ need to learn SMAC or the optimizer's internals; you drive it and explain it.
 - `optimize status`, `shortlist`, `decide`, `winner` and `best` work on a run.
 - `engine=random` and `engine=smac` both run. SMAC is installed and drives the
   same trial loop; `--dry-run` validates it.
-- The **real MT4 evaluator** is still not enabled: the start file may not carry
-  `TestExpertParameters`. The Lead must allow that key before a real trial can
-  run. Until then, never claim a real optimization ran.
+- The **real MT4 evaluator** is enabled: each trial `.set` is copied to the
+  copy's `tester/` folder and passed with `TestExpertParameters`. It still needs
+  a logged-in MT4 copy (this PC's copy has no account) and a working tester run.
 - `config.json` has an `engine` field: `random` or `smac`.
 
 ## The conversation you must have
@@ -39,6 +39,7 @@ python -m losslens optimize plan --set expert.set --expert MyEA --symbol XAUUSD 
     --from 2026-03-03 --to 2026-03-03 --budget 50 --engine smac \
     --out data/optimize/run1 --json
 python -m losslens optimize run --config data/optimize/run1/config.json --dry-run --json
+python -m losslens optimize run --config data/optimize/run1/config.json --json
 python -m losslens optimize status --run data/optimize/run1 --json
 python -m losslens optimize shortlist --run data/optimize/run1 --limit 5 --json
 python -m losslens optimize decide --run data/optimize/run1 --trial 7 \
@@ -49,6 +50,10 @@ python -m losslens optimize best --run data/optimize/run1 --json
 
 Every command takes `--json`; use it. The plain output is for the user, the JSON
 is for you.
+
+A real run launches MT4 once per trial, so it is slow. Use `--dry-run` to check
+the loop first. `--visual` shows MT4's tester chart (slower); `--timeout` sets
+the per-trial limit.
 
 ## Stop rule
 

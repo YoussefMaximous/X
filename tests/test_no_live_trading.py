@@ -25,6 +25,7 @@ MT4_COPY_FILES = (
 TESTER_KEYS = frozenset(
     {
         "TestExpert",
+        "TestExpertParameters",
         "TestSymbol",
         "TestPeriod",
         "TestModel",

@@ -1,9 +1,14 @@
 import json
 from datetime import date
+from pathlib import Path
 
 from losslens.cli import main
 from losslens.mt4.presets import parse_set
+from losslens.mt4.report import parse_report
+from losslens.mt4.run import RunResult
 from losslens.optimize import core
+
+FIXTURE = Path(__file__).parent / "fixtures" / "mt4_report_probe.htm"
 
 SET_TEXT = """Lots=0.10
 Lots,1=0.01
@@ -305,7 +310,74 @@ def test_cli_smac_dry_run(tmp_path, capsys):
     assert data["best_trial"] is not None
 
 
-def test_cli_run_without_evaluator_is_refused(tmp_path, capsys):
+def test_cli_run_uses_the_tester_parameters(tmp_path, monkeypatch, capsys):
+    preset = tmp_path / "expert.set"
+    preset.write_text(SET_TEXT, encoding="utf-8")
+    run_dir = tmp_path / "run"
+    monkeypatch.setenv("LOSSLENS_DATA", str(tmp_path))
+    assert (
+        main(
+            [
+                "optimize",
+                "plan",
+                "--set",
+                str(preset),
+                "--expert",
+                "TestEA",
+                "--symbol",
+                "XAUUSD",
+                "--from",
+                "2026-03-03",
+                "--to",
+                "2026-03-03",
+                "--budget",
+                "1",
+                "--out",
+                str(run_dir),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    seen = []
+
+    def fake_run_tester(copy_root, symbol, from_day, to_day, spread, timeout, **kwargs):
+        seen.append(kwargs)
+        assert (copy_root / "tester" / "losslens_trial.set").is_file()
+        return RunResult(
+            timed_out=False,
+            seconds=0.1,
+            report_files=[],
+            probe_info=None,
+            probe_ticks=None,
+            output="",
+            report=parse_report(FIXTURE),
+        )
+
+    monkeypatch.setattr("losslens.cli.mt4_run.run_tester", fake_run_tester)
+
+    code = main(
+        [
+            "optimize",
+            "run",
+            "--config",
+            str(run_dir / "config.json"),
+            "--out",
+            str(run_dir),
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["trials"] == 1
+    assert seen and seen[0]["parameters"] == "losslens_trial.set"
+    record = json.loads((run_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert record["metrics"]["net_profit"] == 0.0
+    assert record["metrics"]["trades"] == 0.0
+
+
+def test_cli_run_refuses_an_unknown_engine(tmp_path, capsys):
     preset = tmp_path / "expert.set"
     preset.write_text(SET_TEXT, encoding="utf-8")
     run_dir = tmp_path / "run"
@@ -324,6 +396,8 @@ def test_cli_run_without_evaluator_is_refused(tmp_path, capsys):
                 "2026-03-03",
                 "--to",
                 "2026-03-03",
+                "--engine",
+                "bogus",
                 "--out",
                 str(run_dir),
             ]
@@ -332,7 +406,15 @@ def test_cli_run_without_evaluator_is_refused(tmp_path, capsys):
     )
     capsys.readouterr()
 
-    code = main(["optimize", "run", "--config", str(run_dir / "config.json")])
+    code = main(
+        [
+            "optimize",
+            "run",
+            "--config",
+            str(run_dir / "config.json"),
+            "--dry-run",
+        ]
+    )
 
     assert code == 2
-    assert "MT4 evaluator is not enabled" in capsys.readouterr().err
+    assert "unknown engine" in capsys.readouterr().err

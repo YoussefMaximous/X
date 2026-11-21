@@ -40,9 +40,15 @@ def run_tester(
     timeout: float,
     *,
     visual: bool = False,
+    parameters: str | None = None,
 ) -> RunResult:
     start_text = build_start_file(
-        symbol, from_day, to_day + timedelta(days=1), spread, visual=visual
+        symbol,
+        from_day,
+        to_day + timedelta(days=1),
+        spread,
+        visual=visual,
+        parameters=parameters,
     )
     start_file = copy_root / START_FILE
     start_file.write_text(start_text, encoding="utf-8", newline="\n")
