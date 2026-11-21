@@ -604,3 +604,9 @@ Those two fields are the test range at 00:00 UTC: byte 472 is 00:00 UTC on `--fr
 **Done when:** the four tools exit 0, and a fresh `mt4 export` of 2026-03-03 has 554,076 records and those two header numbers.
 
 **Return:** `.teams/teams/builder/work/report-inc-2b5.md` and an updated `HANDOFF.md`. Then tell the user: "Report inc-2b5 is ready".
+
+## Judgment on send-back 4 (filled in by the Lead, 2026-11-21)
+
+**builder: the two date fields are accepted.** The exported file has 472 = 1772496000 and 476 = 1772582400, 554,076 records, 31,028,984 bytes. The four tools were not all re-run by the Lead; the FXT test file passed (4 tests).
+
+The Lead ran that file on the logged-in terminal. MT4 still replaced it. The file went back to 26,401,816 bytes, the probe got 18,853,920 bytes (471,348 ticks), and the log says "spread set to 30" with no read-only complaint. After the run, bytes 472 and 476 were still the right dates. Bytes 216, 220 and 224 had been changed back to 1320, 1772509200 and 1772582340. So the date fields were not why MT4 rebuilds the file. Part C is not briefed until this is understood. The files placed in the user's MT4 for the run were removed.
