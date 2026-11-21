@@ -1,6 +1,6 @@
 # X — wrap-up for Opus
 
-Updated: 2026-11-22 · Repo: `https://github.com/YoussefMaximous/X` (private)
+Updated: 2026-11-22 · Repo: `https://github.com/YoussefMaximous/X` (public)
 Build spec: `docs/OPUS_BUILD_BRIEF.md`
 
 ## What X is
@@ -26,6 +26,9 @@ Inputs with Save `.set`.
 
 - **Tick store:** `data/ticks/<SYMBOL>/<YEAR>/<DAY>.parquet`; UTC ms, bid/ask,
   3 decimals for XAUUSD. `ticks status|verify|query|import|sync`.
+- **Dukascopy catalog:** fork `YoussefMaximous/dukascopy-node` (MIT, 1,499
+  instruments); `docs/DUKASCOPY_DATA.md`; `ticks sync` fetches any other year
+  into the local store. No tick data is in git.
 - **X desktop:** native Tkinter shell; chart, Market Watch, Terminal, status,
   timeframes, crosshair, 3-decimal bid/ask/spread, Expert Inputs editor.
 - **Optimizer, AI-native:** `x optimize plan|run|status|shortlist|decide|winner|
