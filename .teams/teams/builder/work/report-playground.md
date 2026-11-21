@@ -110,11 +110,12 @@ BUILD_EXIT=0
 
 Focused: `python -m pytest -q tests/test_playground.py` → `3 passed`.
 
-Current main tree note: a concurrent agent is mid-write on `src/losslens/optimize/` and
-`src/losslens/cli.py`. A repo-wide run there currently fails at `cli.py:125` with
-`cmd_optimize_plan` undefined, and the optimize files have their own lint issues. That work is not
-part of this commit and has not been changed. The clean-worktree result above is the Playground's
-evidence; re-run the four tools after the concurrent work settles.
+Current main tree note: a concurrent agent is mid-write on `src/losslens/optimize/` and its
+`cli.py`/test wiring. The repo-wide gates there currently fail on that work (an unapproved
+`random` import in `optimize/core.py`, lint/format issues in the optimize files, and one mypy
+error in `cli.py`), not on the Playground. That work is not part of this commit and has not been
+changed. The clean-worktree result above is the Playground's evidence; re-run the four tools after
+the concurrent work settles.
 
 ## MT4 look
 

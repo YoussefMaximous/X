@@ -65,8 +65,9 @@ grid to 0.25.
 - The main app (concurrent) may later reuse these exact tokens; this Playground is not integrated
   into the app's server/UI.
 - Concurrent MT4 report/journal/reconciliation and app work landed in the same repo; not part of
-  this part. One whitespace-only `ruff format` touched a line in the concurrent `cli.py` so the
-  repo-wide format gate is green; no behavior changed.
+  this part. A later concurrent `optimize` increment is mid-write and currently fails the
+  repo-wide gates; it was not touched. One whitespace-only `ruff format` touched a line in the
+  concurrent `cli.py` so the repo-wide format gate was green at the time; no behavior changed.
 - `data/` is ignored.
 
 ## Next step
