@@ -1,6 +1,6 @@
 # Main software handoff — after send-back 5, the chart, expert inputs and the optimizer
 
-Updated: 2026-11-21 · Latest code: `d8942ae` · The parallel Playground has its own section in `../HANDOFF.md`.
+Updated: 2026-11-21 · Latest code: `bf33a11` · The parallel Playground has its own section in `../HANDOFF.md`.
 
 ## Goal
 
@@ -8,7 +8,7 @@ Accurate runs on our real ticks, then the parts around them: the MT4-style chart
 
 ## State and how to check it
 
-138 tests pass in a clean worktree at `d8942ae`; ruff, ruff format and mypy exit 0. The live tree currently has an uncommitted Playground refactor beside this work; its own test is mid-write, so repo-wide runs are temporarily red until that session commits.
+141 tests pass in a clean worktree at `bf33a11`; ruff, ruff format and mypy exit 0. The live tree currently has an uncommitted Playground refactor beside this work; its own test is mid-write, so repo-wide runs are temporarily red until that session commits.
 
 ```text
 python -m pytest -q
@@ -39,6 +39,8 @@ python -m losslens mt4 reconcile --report <report.htm> --symbol XAUUSD
 - `mt4 inputs` reads a `.set` or `.mq4`; the `.set` writer keeps the MT4 optimization range format.
 - `optimize` is the AI-native interface: plan asks the user the goal/risk/trades questions, `run --dry-run` validates the loop, `status` gives stop advice, `shortlist` gives candidates, `decide` records a winner that need not be the top score, `winner` writes it, `best` keeps the top score separate.
 - SMAC is installed (`smac==2.4.1`, `ConfigSpace==1.2.2`) and enabled as `engine=smac`; the smoke run did 6 trials on the dry objective and found 98.3333 at `Lots 0.04, StopLoss 40`.
+- `TestExpertParameters` is allowed in the start file. `mt4 run --parameters <set>` copies the `.set` into the copy's `tester/`; the optimizer's real evaluator does the same for every trial and reads net profit, trades, max drawdown and profit factor from the report.
+- The chart keeps **3 decimals** and draws the real ask line and spread; MT4's HST/FXT still round to 2 only at the export boundary.
 - The guard allowlists now include `smac`/`ConfigSpace` and the exact dependency set; the guard tests still pass.
 - `docs/OPTIMIZE.md` tells an AI how to run the conversation, when to stop and how to keep every trial visible.
 
@@ -49,11 +51,12 @@ Date fields 472/476, matching all six header numbers, making our file newer than
 ## Open
 
 - Whether MT4 now keeps the 30,405,312-byte tick file: the Lead's run.
-- The **real** optimizer evaluator needs `TestExpertParameters` in the start file; the safety guard's tester-key list must allow it. Then a trial can pass a `.set` to MT4. SMAC itself is now enabled; only the MT4 side is missing.
+- The **real** optimizer evaluator is enabled and passes each trial `.set` to the tester. It still needs a logged-in MT4: this PC's copy has no account, so automated runs stop before the tester.
 - The copy has no account; automated runs need a one-time login in the copy or a decision to drive the logged-in terminal.
+- Layer 2 (our fill engine on real bid/ask for EAs with source) is not built; today the fills come from MT4, and the app shows the real spread beside the run.
 - The full app and the losses screen are not built; `app build` is a static page, not the server UI.
 - The parallel Playground is committed and has its own handoff/report; leave it alone.
 
 ## Next step
 
-The Lead allows `TestExpertParameters` and runs the new FXT once. Then the real evaluator connects to the SMAC interface that is already in place.
+The Lead clears the copy login (or allows the app to drive the logged-in terminal) and runs the new FXT once. Then a real SMAC trial can run on the EA; layer 2 is the next build after that.
