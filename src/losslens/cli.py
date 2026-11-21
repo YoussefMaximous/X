@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .app import build as app_build
 from .mt4 import check as mt4_check
 from .mt4 import compile as mt4_compile
 from .mt4 import copy as mt4_copy
@@ -93,6 +94,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="how far the file's clock is ahead of UTC",
     )
     import_cmd.set_defaults(func=cmd_ticks_import)
+
+    app = commands.add_parser("app", help="build the local chart page")
+    app_commands = app.add_subparsers(dest="app_command", required=True)
+    app_build_cmd = app_commands.add_parser("build", help="write one self-contained chart page")
+    app_build_cmd.add_argument("--symbol", required=True)
+    app_build_cmd.add_argument("--day", required=True, type=_date_arg)
+    app_build_cmd.add_argument("--out")
+    app_build_cmd.set_defaults(func=cmd_app_build)
 
     status = tick_commands.add_parser("status", help="show what the store covers")
     status.add_argument("--symbol", required=True)
@@ -494,6 +503,19 @@ def cmd_ticks_status(args: argparse.Namespace) -> int:
 
 def _copy_root() -> Path:
     return mt4_copy.copy_target(resolve_data_root())
+
+
+def cmd_app_build(args: argparse.Namespace) -> int:
+    symbol = args.symbol.upper()
+    out = Path(args.out) if args.out else None
+    try:
+        path = app_build.build_app(_store(symbol), symbol, args.day, out)
+    except (app_build.AppError, OSError) as exc:
+        print(f"app build failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"chart: {path}")
+    print(f"size: {path.stat().st_size} bytes")
+    return 0
 
 
 def cmd_mt4_setup(args: argparse.Namespace) -> int:

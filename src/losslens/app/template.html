@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>loss-lens chart</title>
+<style>
+  :root {
+    --panel: #f0f0f0;
+    --panel-dark: #e4e4e4;
+    --line: #a0a0a0;
+    --text: #111;
+    --muted: #666;
+    --accent: #2f6fb3;
+    --chart: #000;
+    --up: #00c000;
+    --down: #ff4040;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--panel); }
+  body { font: 11px Tahoma, Arial, sans-serif; color: var(--text); }
+  #app { display: grid; grid-template-rows: 22px 30px minmax(0, 1fr) 150px 20px; height: 100vh; }
+  #menubar { display: flex; align-items: center; gap: 2px; padding: 0 6px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  #menubar span { padding: 2px 7px; border-radius: 2px; cursor: default; }
+  #menubar span:hover { background: #d8e6f2; }
+  #menubar .brand { margin-left: auto; color: var(--muted); font-weight: bold; letter-spacing: .4px; }
+  #toolbar { display: flex; align-items: center; gap: 4px; padding: 0 6px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  #toolbar button { height: 22px; min-width: 34px; padding: 0 7px; border: 1px solid #9a9a9a; background: #fbfbfb; color: #111; font: 11px Tahoma, Arial, sans-serif; cursor: pointer; }
+  #toolbar button:hover { background: #e8f1fa; }
+  #toolbar button.active { background: var(--accent); border-color: #245786; color: #fff; }
+  #toolbar .gap { width: 10px; }
+  #toolbar .label { color: var(--muted); margin-left: 4px; }
+  #main { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 0; }
+  #watch { background: #fff; border-right: 1px solid var(--line); overflow: hidden; }
+  #watch h2 { margin: 0; padding: 5px 7px; font-size: 11px; background: var(--panel-dark); border-bottom: 1px solid var(--line); }
+  #watch table { width: 100%; border-collapse: collapse; }
+  #watch th { text-align: right; padding: 4px 7px; font-weight: normal; color: var(--muted); border-bottom: 1px solid #e0e0e0; }
+  #watch th:first-child { text-align: left; }
+  #watch td { padding: 5px 7px; text-align: right; border-bottom: 1px solid #f0f0f0; }
+  #watch td:first-child { text-align: left; font-weight: bold; }
+  #watch .up { color: #008000; }
+  #watch .down { color: #c00000; }
+  #watch .note { padding: 7px; color: var(--muted); line-height: 1.5; }
+  #chartarea { position: relative; background: var(--chart); min-width: 0; min-height: 0; }
+  #chart { display: block; width: 100%; height: 100%; cursor: crosshair; }
+  #terminal { display: grid; grid-template-rows: 24px minmax(0, 1fr); background: #fff; border-top: 1px solid var(--line); min-height: 0; }
+  #tabs { display: flex; align-items: stretch; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; }
+  #tabs .terminal-title { display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-weight: bold; border-right: 1px solid var(--line); }
+  #tabs button { padding: 0 10px; border: 0; border-right: 1px solid var(--line); background: transparent; font: 11px Tahoma, Arial, sans-serif; cursor: pointer; color: #111; }
+  #tabs button:hover { background: #e8f1fa; }
+  #tabs button.active { background: #fff; border-bottom: 1px solid #fff; margin-bottom: -1px; font-weight: bold; }
+  #terminalbody { padding: 8px 10px; color: #222; line-height: 1.6; overflow: auto; white-space: pre-wrap; }
+  #status { display: flex; align-items: center; gap: 14px; padding: 0 8px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); }
+  #status .right { margin-left: auto; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="menubar">
+    <span>File</span><span>View</span><span>Insert</span><span>Charts</span><span>Tools</span><span>Window</span><span>Help</span>
+    <span class="brand">LOSS-LENS</span>
+  </div>
+  <div id="toolbar">
+    <button data-tf="1" class="active">M1</button>
+    <button data-tf="5">M5</button>
+    <button data-tf="15">M15</button>
+    <button data-tf="30">M30</button>
+    <button data-tf="60">H1</button>
+    <button data-tf="240">H4</button>
+    <button data-tf="1440">D1</button>
+    <span class="gap"></span>
+    <button id="zoomout" title="Zoom out">-</button>
+    <button id="zoomin" title="Zoom in">+</button>
+    <button id="end" title="Jump to the latest bar">End</button>
+    <span class="label">Wheel zoom · drag to pan · arrows move</span>
+  </div>
+  <div id="main">
+    <aside id="watch">
+      <h2>Market Watch</h2>
+      <table>
+        <thead><tr><th>Symbol</th><th>Bid</th><th>Ask</th></tr></thead>
+        <tbody><tr><td id="wsymbol">XAUUSD</td><td id="bid">-</td><td id="ask">-</td></tr></tbody>
+      </table>
+      <div class="note" id="watchtext"></div>
+    </aside>
+    <section id="chartarea"><canvas id="chart"></canvas></section>
+  </div>
+  <div id="terminal">
+    <div id="tabs">
+      <span class="terminal-title">Terminal</span>
+      <button data-tab="Trade">Trade</button>
+      <button data-tab="Exposure">Exposure</button>
+      <button data-tab="Account History">Account History</button>
+      <button data-tab="News">News</button>
+      <button data-tab="Alerts">Alerts</button>
+      <button data-tab="Experts">Experts</button>
+      <button data-tab="Journal" class="active">Journal</button>
+    </div>
+    <div id="terminalbody"></div>
+  </div>
+  <div id="status">
+    <span>Local only · nothing is sent</span>
+    <span id="statuscenter"></span>
+    <span class="right" id="statusright"></span>
+  </div>
+</div>
+<script>
+const DATA = /*__DATA__*/;
+const TF_LABEL = {1: 'M1', 5: 'M5', 15: 'M15', 30: 'M30', 60: 'H1', 240: 'H4', 1440: 'D1'};
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+const terminalbody = document.getElementById('terminalbody');
+let tf = 1;
+let bars = DATA.bars;
+let view = {start: Math.max(0, bars.length - 180), count: Math.min(bars.length, 180)};
+let hover = null;
+let dragging = null;
+let dirty = true;
+
+const TERMINAL = {
+  'Trade': 'No simulated orders in this build.',
+  'Exposure': 'No exposure.',
+  'Account History': 'No account is connected. This page is local only.',
+  'News': 'No news. Nothing is loaded from the internet.',
+  'Alerts': 'No alerts.',
+  'Experts': 'No expert is attached. Runs are launched from the tester.',
+  'Journal': 'Built from ' + DATA.ticks.toLocaleString() + ' stored ticks on ' + DATA.day +
+    '. The chart is drawn from the tick store, not from MT4. Nothing is downloaded.'
+};
+
+function timeLabel(t) {
+  const d = new Date(t * 1000);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  if (tf >= 1440) {
+    return String(d.getUTCDate()).padStart(2, '0') + '.' + String(d.getUTCMonth() + 1).padStart(2, '0');
+  }
+  return hh + ':' + mm;
+}
+
+function money(value) {
+  return value.toFixed(DATA.digits);
+}
+
+function aggregate(minutes) {
+  if (minutes === 1) return DATA.bars;
+  const span = minutes * 60;
+  const out = [];
+  let bucket = null;
+  for (const row of DATA.bars) {
+    const key = Math.floor(row[0] / span);
+    if (bucket === null || bucket.key !== key) {
+      if (bucket !== null) out.push([bucket.t, bucket.o, bucket.h, bucket.l, bucket.c, bucket.v]);
+      bucket = {key: key, t: key * span, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5]};
+    } else {
+      bucket.h = Math.max(bucket.h, row[2]);
+      bucket.l = Math.min(bucket.l, row[3]);
+      bucket.c = row[4];
+      bucket.v += row[5];
+    }
+  }
+  if (bucket !== null) out.push([bucket.t, bucket.o, bucket.h, bucket.l, bucket.c, bucket.v]);
+  return out;
+}
+
+function setTimeframe(minutes) {
+  tf = minutes;
+  bars = aggregate(minutes);
+  view.count = Math.min(bars.length, 180);
+  view.start = Math.max(0, bars.length - view.count);
+  hover = null;
+  document.querySelectorAll('[data-tf]').forEach(function (button) {
+    button.classList.toggle('active', Number(button.dataset.tf) === minutes);
+  });
+  updateStatus();
+  invalidate();
+}
+
+function updateStatus() {
+  document.getElementById('statuscenter').textContent =
+    DATA.symbol + ' · ' + TF_LABEL[tf] + ' · ' + bars.length.toLocaleString() + ' bars';
+  document.getElementById('statusright').textContent =
+    DATA.ticks.toLocaleString() + ' ticks · server UTC+' + DATA.offset_hours;
+}
+
+function resize() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  invalidate();
+}
+
+function invalidate() {
+  if (dirty) return;
+  dirty = true;
+  requestAnimationFrame(draw);
+}
+
+function plotBox(width, height) {
+  return {left: 8, right: 64, top: 20, bottom: 24, width: width - 72, height: height - 44};
+}
+
+function draw() {
+  dirty = false;
+  const W = canvas.clientWidth;
+  const H = canvas.clientHeight;
+  if (!W || !H) return;
+  const box = plotBox(W, H);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  if (box.width <= 0 || box.height <= 0) return;
+  const visible = bars.slice(view.start, view.start + view.count);
+  if (!visible.length) return;
+
+  let low = Infinity;
+  let high = -Infinity;
+  for (const row of visible) {
+    low = Math.min(low, row[3]);
+    high = Math.max(high, row[2]);
+  }
+  const span = high - low || 0.5;
+  low -= span * 0.08;
+  high += span * 0.08;
+  const y = function (price) { return box.top + (high - price) / (high - low) * box.height; };
+  const x = function (index) { return box.left + (index - view.start + 0.5) * (box.width / view.count); };
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.fillStyle = '#a8a8a8';
+  ctx.font = '11px Tahoma, Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const rows = 6;
+  for (let i = 0; i <= rows; i += 1) {
+    const gy = box.top + box.height * i / rows;
+    ctx.beginPath();
+    ctx.moveTo(box.left, gy + 0.5);
+    ctx.lineTo(box.left + box.width, gy + 0.5);
+    ctx.stroke();
+    const price = high - (high - low) * i / rows;
+    ctx.fillText(money(price), box.left + box.width + 6, gy);
+  }
+
+  const step = Math.max(1, Math.ceil(view.count / 8));
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let i = Math.ceil(view.start / step) * step; i < view.start + view.count; i += step) {
+    if (i < 0 || i >= bars.length) continue;
+    const gx = x(i);
+    if (gx < box.left || gx > box.left + box.width) continue;
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.5, box.top);
+    ctx.lineTo(gx + 0.5, box.top + box.height);
+    ctx.stroke();
+    ctx.fillText(timeLabel(bars[i][0]), gx, box.top + box.height + 4);
+  }
+
+  const barWidth = box.width / view.count;
+  const bodyWidth = Math.max(1, Math.min(14, barWidth * 0.68));
+  for (let i = view.start; i < Math.min(bars.length, view.start + view.count); i += 1) {
+    const row = bars[i];
+    const cx = x(i);
+    const up = row[4] >= row[1];
+    const color = up ? '#00c000' : '#ff4040';
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(cx) + 0.5, y(row[2]));
+    ctx.lineTo(Math.round(cx) + 0.5, y(row[3]));
+    ctx.stroke();
+    const bodyTop = Math.min(y(row[1]), y(row[4]));
+    const bodyHeight = Math.max(1, Math.abs(y(row[4]) - y(row[1])));
+    ctx.fillRect(cx - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
+  }
+
+  const last = bars[bars.length - 1];
+  const lastY = y(last[4]);
+  ctx.strokeStyle = '#707070';
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(box.left, lastY + 0.5);
+  ctx.lineTo(box.left + box.width, lastY + 0.5);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#00c000';
+  ctx.fillRect(box.left + box.width + 2, lastY - 8, box.right - 4, 16);
+  ctx.fillStyle = '#000';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(money(last[4]), box.left + box.width + 2 + (box.right - 4) / 2, lastY);
+
+  if (hover !== null) {
+    const hx = x(hover.index);
+    const hy = y(bars[hover.index][4]);
+    ctx.strokeStyle = '#808080';
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(hx + 0.5, box.top);
+    ctx.lineTo(hx + 0.5, box.top + box.height);
+    ctx.moveTo(box.left, hy + 0.5);
+    ctx.lineTo(box.left + box.width, hy + 0.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const shown = hover === null ? last : bars[hover.index];
+  ctx.fillStyle = '#d8d8d8';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.font = '12px Tahoma, Arial, sans-serif';
+  ctx.fillText(DATA.symbol + ', ' + TF_LABEL[tf], box.left + 4, 4);
+  ctx.font = '11px Tahoma, Arial, sans-serif';
+  ctx.fillStyle = '#b0b0b0';
+  ctx.fillText(
+    'O ' + money(shown[1]) + '  H ' + money(shown[2]) + '  L ' + money(shown[3]) +
+    '  C ' + money(shown[4]) + '  V ' + shown[5],
+    box.left + 4, 18
+  );
+}
+
+function hoverAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const box = plotBox(rect.width, rect.height);
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  if (mx < box.left || mx > box.left + box.width || my < box.top || my > box.top + box.height) {
+    return null;
+  }
+  const index = view.start + Math.floor((mx - box.left) / (box.width / view.count));
+  return {index: Math.max(0, Math.min(bars.length - 1, index)), x: mx, y: my};
+}
+
+canvas.addEventListener('mousemove', function (event) {
+  if (dragging !== null) {
+    const rect = canvas.getBoundingClientRect();
+    const box = plotBox(rect.width, rect.height);
+    const shift = Math.round((event.clientX - dragging.x) / (box.width / view.count));
+    view.start = Math.max(0, Math.min(bars.length - view.count, dragging.start - shift));
+    hover = null;
+    invalidate();
+    return;
+  }
+  const next = hoverAt(event.clientX, event.clientY);
+  if (JSON.stringify(next) !== JSON.stringify(hover)) {
+    hover = next;
+    invalidate();
+  }
+});
+
+canvas.addEventListener('mousedown', function (event) {
+  const rect = canvas.getBoundingClientRect();
+  dragging = {x: event.clientX, start: view.start, rect: rect};
+  canvas.style.cursor = 'grabbing';
+  event.preventDefault();
+});
+
+window.addEventListener('mouseup', function () {
+  dragging = null;
+  canvas.style.cursor = 'crosshair';
+});
+
+canvas.addEventListener('mouseleave', function () {
+  if (dragging === null) {
+    hover = null;
+    invalidate();
+  }
+});
+
+canvas.addEventListener('wheel', function (event) {
+  event.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const box = plotBox(rect.width, rect.height);
+  const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left - box.left) / box.width));
+  const anchor = view.start + fraction * view.count;
+  const factor = event.deltaY > 0 ? 1.2 : 0.8;
+  const minimum = Math.min(20, bars.length);
+  const count = Math.max(minimum, Math.min(bars.length, Math.round(view.count * factor)));
+  view.start = Math.max(0, Math.min(bars.length - count, Math.round(anchor - fraction * count)));
+  view.count = count;
+  hover = null;
+  invalidate();
+}, {passive: false});
+
+document.getElementById('zoomin').addEventListener('click', function () {
+  const minimum = Math.min(20, bars.length);
+  const count = Math.max(minimum, Math.round(view.count * 0.8));
+  view.start = Math.max(0, Math.min(bars.length - count, view.start + Math.round((view.count - count) / 2)));
+  view.count = count;
+  invalidate();
+});
+
+document.getElementById('zoomout').addEventListener('click', function () {
+  const count = Math.min(bars.length, Math.round(view.count * 1.25));
+  view.start = Math.max(0, Math.min(bars.length - count, view.start - Math.round((count - view.count) / 2)));
+  view.count = count;
+  invalidate();
+});
+
+document.getElementById('end').addEventListener('click', function () {
+  view.start = Math.max(0, bars.length - view.count);
+  invalidate();
+});
+
+document.querySelectorAll('[data-tf]').forEach(function (button) {
+  button.addEventListener('click', function () { setTimeframe(Number(button.dataset.tf)); });
+});
+
+document.querySelectorAll('[data-tab]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    document.querySelectorAll('[data-tab]').forEach(function (other) {
+      other.classList.toggle('active', other === button);
+    });
+    terminalbody.textContent = TERMINAL[button.dataset.tab] || '';
+  });
+});
+
+window.addEventListener('keydown', function (event) {
+  const move = Math.max(1, Math.round(view.count / 10));
+  if (event.key === 'ArrowLeft') {
+    view.start = Math.max(0, view.start - move);
+    invalidate();
+  } else if (event.key === 'ArrowRight') {
+    view.start = Math.max(0, Math.min(bars.length - view.count, view.start + move));
+    invalidate();
+  } else if (event.key === '+' || event.key === '=') {
+    document.getElementById('zoomin').click();
+  } else if (event.key === '-') {
+    document.getElementById('zoomout').click();
+  } else if (event.key === 'End') {
+    document.getElementById('end').click();
+  }
+});
+
+document.getElementById('wsymbol').textContent = DATA.symbol;
+document.getElementById('bid').textContent = money(DATA.bid);
+document.getElementById('ask').textContent = money(DATA.ask);
+const lastBar = DATA.bars[DATA.bars.length - 1];
+const previousBar = DATA.bars[Math.max(0, DATA.bars.length - 2)];
+const change = lastBar[4] - previousBar[4];
+const changeText = (change >= 0 ? '+' : '') + change.toFixed(DATA.digits);
+document.getElementById('watchtext').innerHTML =
+  'Last ' + timeLabel(lastBar[0]) + ' server<br>' +
+  'Change <span class="' + (change >= 0 ? 'up' : 'down') + '">' + changeText + '</span>';
+terminalbody.textContent = TERMINAL.Journal;
+updateStatus();
+
+const observer = new ResizeObserver(function () { resize(); });
+observer.observe(canvas.parentElement);
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>
